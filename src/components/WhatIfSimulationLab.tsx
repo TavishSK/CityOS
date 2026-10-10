@@ -169,10 +169,25 @@ export const WhatIfSimulationLab: React.FC<WhatIfSimulationLabProps> = ({
   };
 
   const handleApplyToLive = () => {
+    storeActiveSimulation(currentScenario);
+    if (onSelectScenario) {
+      onSelectScenario(currentScenario);
+    }
     setToastMessage(`Pushed "${currentScenario.name}" action plan to Live AI Response Planner!`);
     setTimeout(() => {
       onNavigateTab('ai-response-planner');
-    }, 1500);
+    }, 1000);
+  };
+
+  const handleViewImpactChain = () => {
+    storeActiveSimulation(currentScenario);
+    if (onSelectScenario) {
+      onSelectScenario(currentScenario);
+    }
+    setToastMessage(`Opening Causal Impact Topology for "${currentScenario.name}"...`);
+    setTimeout(() => {
+      onNavigateTab('citywide-impact-chain');
+    }, 800);
   };
 
   const handleExportReport = () => {

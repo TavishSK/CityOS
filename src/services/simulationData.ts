@@ -1835,3 +1835,1385 @@ export function storeActiveSimulation(sc: ScenarioTemplate): void {
     console.warn('Error saving active simulation scenario:', e);
   }
 }
+
+// ============================================================================
+// CITYWIDE IMPACT CHAIN & CAUSAL TOPOLOGY DATA STRUCTURES
+// ============================================================================
+
+export interface ScenarioImpactNode {
+  id: string;
+  stage: 1 | 2 | 3 | 4;
+  stageLabel: string;
+  title: string;
+  sector: string;
+  colorClass: string;
+  badgeBg: string;
+  desc: string;
+  vuln: string;
+  metric: string;
+  metricLabel: string;
+  ripple: string;
+  location: string;
+  upstreamFrom?: string;
+  severPointId?: string;
+}
+
+export interface ScenarioSeverIntervention {
+  id: string;
+  name: string;
+  agency: string;
+  action: string;
+  consequencePrevented: string;
+  efficiency: string;
+  targetNodeIds: string[];
+}
+
+export interface ScenarioImpactChainData {
+  graphId: string;
+  rootStressor: string;
+  rootStressorDetail: string;
+  silosImpacted: string;
+  cascadeVelocity: string;
+  citizensAtRisk: string;
+  riskRadius: string;
+  nodes: Record<string, ScenarioImpactNode>;
+  severInterventions: ScenarioSeverIntervention[];
+  summary: string;
+}
+
+// ============================================================================
+// AI RESPONSE PLANNER DATA STRUCTURES
+// ============================================================================
+
+export interface ScenarioResponseDirective {
+  stepNumber: number;
+  priority: 'CRITICAL' | 'HIGH' | 'ELEVATED' | 'URGENT';
+  priorityColor: string;
+  agencies: string;
+  leadOfficial: string;
+  title: string;
+  explanation: string;
+  resourcesCommitted: string;
+  executionWindow: string;
+  telemetryHook: string;
+  approved: boolean;
+  approvedBy?: string;
+}
+
+export interface ScenarioResourceConflict {
+  resourceName: string;
+  resourceType: string;
+  agencyA: string;
+  needA: string;
+  agencyB: string;
+  needB: string;
+  aiArbitrationProposal: string;
+  arbitrationFeasibility: string;
+  rationale: string;
+  status: 'PENDING' | 'RESOLVED';
+}
+
+export interface ScenarioResponsePlanData {
+  planId: string;
+  title: string;
+  incidentName: string;
+  location: string;
+  protocolClass: string;
+  severityLevel: string;
+  aiConfidence: string;
+  summary: string;
+  targetResolutionWindow: string;
+  projectedDeltas: {
+    cascadeReduction: string;
+    cascadeReductionLabel: string;
+    timeSaved: string;
+    timeSavedLabel: string;
+    economicSaved: string;
+    economicSavedLabel: string;
+  };
+  resourceConflict: ScenarioResourceConflict;
+  directives: ScenarioResponseDirective[];
+}
+
+/**
+ * Returns a mathematically and logically synchronized 4-stage causal impact chain
+ * for ANY scenario in Bengaluru.
+ */
+export function getScenarioImpactChain(sc: ScenarioTemplate): ScenarioImpactChainData {
+  const loc = sc.locationName.split(' &')[0].split(' (')[0];
+  const cat = sc.category.toLowerCase();
+
+  // 1. HEBBAL FLOOD CAUSAL TOPOLOGY
+  if (sc.id === 'hebbal-flood' || loc.toLowerCase().includes('hebbal') || (cat === 'flood' && loc.toLowerCase().includes('hebbal'))) {
+    return {
+      graphId: 'NET-IMPACT-BLR-HEBBAL',
+      rootStressor: '3.2 ft Underpass Flood',
+      rootStressorDetail: 'Hebbal Sump Runoff Overflow',
+      silosImpacted: '4 Sectors Bound',
+      cascadeVelocity: '+18.5% / hr',
+      citizensAtRisk: sc.affectedPopulation || '~85,000 Commuters',
+      riskRadius: 'Hebbal, RT Nagar, Yelahanka',
+      summary: 'Storm runoff overflow under Hebbal flyover ramp halts KIA Airport transit, isolating Baptist Hospital emergency care and threatening electrical substation feeders.',
+      nodes: {
+        'node-nexus': {
+          id: 'ENV-TRIGGER-HEBBAL',
+          stage: 1,
+          stageLabel: 'Stage 01: Shock Nexus',
+          title: 'Hebbal Flyover Ramp Inundation (3.2 ft)',
+          sector: 'HYDROLOGICAL / BBMP STORMWATER',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Heavy stormwater from Hebbal Lake overflow channel surged into the sunken highway underpass, drowning road surface and stalling 40+ motor vehicles.',
+          vuln: '9.8',
+          metric: '3.2 ft Depth',
+          metricLabel: 'Standing Water',
+          ripple: '5 Primary Sectors',
+          location: 'Hebbal Flyover / Bellary Road Underpass'
+        },
+        'node-sec-power': {
+          id: 'NODE-SECTOR-POWER',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Hebbal 11kV Substation Isolation Trip',
+          sector: 'ENERGY (BESCOM)',
+          colorClass: 'text-primary',
+          badgeBg: 'bg-primary/15',
+          desc: 'BESCOM emergency linemen tripped 11kV feeder lines into submerged underpass streetlight conduits to eliminate lethal electrocution risks for stranded motorists.',
+          vuln: '8.4',
+          metric: '18,500 Homes',
+          metricLabel: 'Grid Safeguard Mode',
+          ripple: '3 Sub-Grids',
+          location: 'Hebbal Kempapura & Sahakar Nagar',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-transit': {
+          id: 'NODE-SECTOR-TRANSIT',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Bellary Road & KIA Airport Arterial Stoppage',
+          sector: 'TRANSIT OPERATIONS (BTP)',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'Complete halt of north-bound traffic to Kempegowda International Airport. Tailback queue spans 4.2 kilometers reaching Mekhri Circle.',
+          vuln: '9.2',
+          metric: '+58 mins Delay',
+          metricLabel: 'Commute Inflation',
+          ripple: '4 Key Corridors',
+          location: 'Bellary Road / Mekhri Circle Corridor',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-health': {
+          id: 'NODE-SECTOR-HEALTH',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Baptist Hospital Main Entrance Gate Flooded',
+          sector: 'PUBLIC HEALTH (BBMP / 108 EMS)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Front entrance on Bellary Road is submerged under 2.5 ft water. 108 Ambulances carrying trauma and cardiac patients cannot access the primary casualty triage bay.',
+          vuln: '9.5',
+          metric: '14 Ambulances',
+          metricLabel: 'Access Impeded',
+          ripple: '3 ER Networks',
+          location: 'Baptist Hospital Bellary Road Gate',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-mult-commute': {
+          id: 'NODE-MULT-COMMUTE',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'BMTC Vayu Vajra & Manyata Tech Commuters Trapped',
+          sector: 'TRANSIT + COMMERCE',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'Over 40 BMTC airport buses halted. 45,000 tech employees exiting Manyata Tech park cannot merge onto the flooded Outer Ring Road.',
+          vuln: '7.8',
+          metric: '40 Buses Stalled',
+          metricLabel: 'Mass Transit Choke',
+          ripple: 'Manyata & Nagawara',
+          location: 'Manyata Tech Park Gate 1 & 2',
+          upstreamFrom: 'node-sec-transit'
+        },
+        'node-mult-health-power': {
+          id: 'NODE-MULT-HEALTH-POWER',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'Baptist Hospital ICU on Auxiliary Generator Fuel',
+          sector: 'HEALTH + UTILITIES',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Hospital life-support operating on diesel backup; fuel delivery tanker is delayed in the Bellary Road gridlock queue.',
+          vuln: '8.9',
+          metric: '4.5 hrs Fuel',
+          metricLabel: 'Diesel Reserve',
+          ripple: '2 Hospital Wings',
+          location: 'Baptist Hospital Emergency Genset',
+          upstreamFrom: 'node-sec-health'
+        },
+        'node-mult-water': {
+          id: 'NODE-MULT-WATER',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'BWSSB Pumping Booster Station Submersion',
+          sector: 'WATER WORKS (BWSSB)',
+          colorClass: 'text-tertiary',
+          badgeBg: 'bg-tertiary/15',
+          desc: 'Storm drain overflow breached the pump house perimeter wall, threatening freshwater supply to Sahakar Nagar and Kodigehalli.',
+          vuln: '7.4',
+          metric: '-15 PSI Loss',
+          metricLabel: 'Water Distribution',
+          ripple: '2 Municipal Wards',
+          location: 'BWSSB Hebbal Valley Pumping Station',
+          upstreamFrom: 'node-sec-power'
+        },
+        'node-bottleneck': {
+          id: 'BOTTLENECK-CRITICAL-NORTH',
+          stage: 4,
+          stageLabel: 'Stage 04: Systemic Bottleneck',
+          title: 'Bengaluru Northern Arterial Grid Collapse',
+          sector: 'CROSS-SILO CATASTROPHIC FAILURE',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/20',
+          desc: 'Airport transit paralysis collides with hospital ambulance route blockade and electrical feeder safety shutdowns, generating systemic paralysis across North Bengaluru.',
+          vuln: '9.9',
+          metric: 'Total Gridlock',
+          metricLabel: 'Systemic Fracture',
+          ripple: '8 Municipal Divisions',
+          location: 'North Bengaluru Master Arterial Ring'
+        }
+      },
+      severInterventions: [
+        {
+          id: 'SEVER-A',
+          name: 'Open Nagawara Sluice Gates & Deploy 6 High-Power Sump Pumps',
+          agency: 'BBMP Stormwater & KSFES Dewatering',
+          action: 'Diverts 45,000 LPM of flood runoff away from flyover into storm canal, lowering water level by 2.2 ft in 30 minutes.',
+          consequencePrevented: 'Re-opens two central highway lanes, preventing total airport route collapse.',
+          efficiency: '92% Water Clearance',
+          targetNodeIds: ['node-sec-power', 'node-sec-transit']
+        },
+        {
+          id: 'SEVER-B',
+          name: 'BTP Hennur-Thanisandra Green Bypass & Hospital Rear Gate Corridor',
+          agency: 'Bengaluru Traffic Police & BBMP Health',
+          action: 'Reroutes airport taxis via Thanisandra Main Road and opens Sanjaynagar service road for 108 Baptist ambulances.',
+          consequencePrevented: 'Guarantees zero stoppage for trauma patients and preserves airport passenger departures.',
+          efficiency: '88% Route Recovery',
+          targetNodeIds: ['node-sec-health', 'node-mult-health-power']
+        }
+      ]
+    };
+  }
+
+  // 2. CUBBON PARK MISSING CHILD PROTOCOL AMBER
+  if (sc.id === 'cubbon-park-search' || loc.toLowerCase().includes('cubbon') || cat === 'search') {
+    return {
+      graphId: 'NET-IMPACT-BLR-CUBBON',
+      rootStressor: 'Child Missing (Protocol Amber)',
+      rootStressorDetail: 'Bal Bhavan Play Area Core',
+      silosImpacted: '4 Sectors Bound',
+      cascadeVelocity: 'Golden Hour (T-45m)',
+      citizensAtRisk: sc.affectedPopulation || '~6,500 Park Visitors',
+      riskRadius: 'Cubbon Park, MG Road, Kasturba Rd',
+      summary: 'Child separation near Bal Bhavan initiates Protocol Amber: securing 7 park gates, thermal drone canopy sweeps, and coordinated metro turnstile screening.',
+      nodes: {
+        'node-nexus': {
+          id: 'ENV-TRIGGER-CUBBON',
+          stage: 1,
+          stageLabel: 'Stage 01: Shock Nexus',
+          title: '7-Year-Old Child Separated near Bal Bhavan',
+          sector: 'PUBLIC SAFETY & WELFARE (BCP)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Child separated from parents inside Cubbon Park at 16:45. Dense bamboo clusters and multiple exit gates create an urgent golden-hour search window.',
+          vuln: '9.6',
+          metric: '150 Acres',
+          metricLabel: 'Primary Search Zone',
+          ripple: '7 Perimeter Gates',
+          location: 'Cubbon Park Bal Bhavan / Toy Train Edge'
+        },
+        'node-sec-power': {
+          id: 'NODE-SECTOR-SECURITY',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'All 7 Park Perimeter Gates Sealed for Vehicle Egress',
+          sector: 'HORTICULTURE & POLICE (BBMP / BCP)',
+          colorClass: 'text-primary',
+          badgeBg: 'bg-primary/15',
+          desc: 'Gate marshals close vehicle exits across Kasturba Rd, Press Club, and High Court gates; conducting visual child verification on departing adults.',
+          vuln: '8.2',
+          metric: '7 Gates Sealed',
+          metricLabel: 'Cordon Active',
+          ripple: '3 Surrounding Roads',
+          location: 'Cubbon Park Perimeter Gates',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-transit': {
+          id: 'NODE-SECTOR-TRANSIT',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Kasturba Road & Hudson Circle Vehicle Spot-Checks',
+          sector: 'TRAFFIC MANAGEMENT (BTP)',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'Traffic marshals slow incoming traffic on Kasturba Road and Queen\'s Road to monitor pedestrian crossings and support perimeter lockdown.',
+          vuln: '7.4',
+          metric: '+12 mins Delay',
+          metricLabel: 'Gate Spot-Checks',
+          ripple: 'Hudson Circle Arterials',
+          location: 'Kasturba Road & Hudson Circle',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-health': {
+          id: 'NODE-SECTOR-HEALTH',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Pediatric Medical & First Aid Standby at Hudson Gate',
+          sector: 'EMERGENCY MEDICAL (108 / BBMP)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: '108 Pediatric paramedic van positioned with hydration and emergency care ready immediately upon child location.',
+          vuln: '7.8',
+          metric: 'Paramedic Ready',
+          metricLabel: 'Gate 1 Staging',
+          ripple: 'Bowring Hospital Pediatric Bay',
+          location: 'Hudson Circle Gate 1',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-mult-commute': {
+          id: 'NODE-MULT-COMMUTE',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'Cubbon Park & Vidhana Soudha Metro Turnstile Screen',
+          sector: 'TRANSIT + RAPID SURVEILLANCE',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'BMRCL metro security monitoring passenger gates with real-time description verification before commuters board trains.',
+          vuln: '7.5',
+          metric: '2 Metro Stations',
+          metricLabel: 'Platform Gates Checked',
+          ripple: 'Purple Line Commute',
+          location: 'Cubbon Park Metro Station',
+          upstreamFrom: 'node-sec-transit'
+        },
+        'node-mult-health-power': {
+          id: 'NODE-MULT-HEALTH-POWER',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'Park High-Mast LED & PA Broadcast Energized',
+          sector: 'ENERGY + PUBLIC COMMS',
+          colorClass: 'text-primary',
+          badgeBg: 'bg-primary/15',
+          desc: 'BESCOM energizes full walking-trail illumination early; PA speakers continuously broadcast child description in Kannada, English, and Hindi.',
+          vuln: '6.5',
+          metric: '100% Illumination',
+          metricLabel: 'High-Mast Active',
+          ripple: 'Inner Park Canopy',
+          location: 'Central Library & Bamboo Walk',
+          upstreamFrom: 'node-sec-power'
+        },
+        'node-mult-water': {
+          id: 'NODE-MULT-WATER',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'Volunteer Search Mesh & K9 Bloodhound Deployment',
+          sector: 'POLICE TACTICAL (CAR K9)',
+          colorClass: 'text-tertiary',
+          badgeBg: 'bg-tertiary/15',
+          desc: 'Canine squad tracking scent from toy train ticket area outward while 3 thermal drones scan tree canopies.',
+          vuln: '8.1',
+          metric: '14 Squads Active',
+          metricLabel: 'Grid Search Mesh',
+          ripple: '3 Park Sectors',
+          location: 'Bal Bhavan to State Central Library',
+          upstreamFrom: 'node-sec-health'
+        },
+        'node-bottleneck': {
+          id: 'BOTTLENECK-CRITICAL-AMBER',
+          stage: 4,
+          stageLabel: 'Stage 04: Systemic Bottleneck',
+          title: 'Golden Hour Perimeter Evaporation Risk',
+          sector: 'SEARCH PERIMETER BREACH RISK',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/20',
+          desc: 'If park gates or metro stations remain uncoordinated, search area expands from 150 acres of enclosed park to the open metropolitan core.',
+          vuln: '9.4',
+          metric: 'Cordon Critical',
+          metricLabel: 'Search Window',
+          ripple: 'All Central Bengaluru',
+          location: 'Bengaluru Central District Mesh'
+        }
+      },
+      severInterventions: [
+        {
+          id: 'SEVER-A',
+          name: 'Thermal Drone Hexacopter Canopy Sweep & K9 Scent Tracking',
+          agency: 'City Armed Reserve & BBMP Air Support',
+          action: 'FLIR infrared body-heat scan pierces dense bamboo canopy in Sector A within 15 minutes.',
+          consequencePrevented: 'Locates child immediately before sunset, eliminating night-time search complications.',
+          efficiency: '96% Detection Rate',
+          targetNodeIds: ['node-sec-power', 'node-mult-water']
+        },
+        {
+          id: 'SEVER-B',
+          name: 'Gate Lockdown & Metro Turnstile Facial Verification Protocol',
+          agency: 'Bengaluru City Police & BMRCL Security',
+          action: 'Instant gate marshal lockdown seals all egress points while BMRCL monitors turnstiles.',
+          consequencePrevented: 'Completely prevents child from wandering into high-traffic MG Road or boarding departing trains.',
+          efficiency: '99% Perimeter Integrity',
+          targetNodeIds: ['node-sec-transit', 'node-mult-commute']
+        }
+      ]
+    };
+  }
+
+  // 3. COMMERCIAL STREET FIRE OUTBREAK
+  if (sc.id === 'commercial-street-fire' || loc.toLowerCase().includes('commercial') || cat === 'fire') {
+    return {
+      graphId: 'NET-IMPACT-BLR-COMMERCIAL-FIRE',
+      rootStressor: 'Level 2 Structural Fire',
+      rootStressorDetail: 'Textile Warehouse Complex',
+      silosImpacted: '4 Sectors Bound',
+      cascadeVelocity: '+24% / 15m',
+      citizensAtRisk: sc.affectedPopulation || '~14,000 Shoppers & Staff',
+      riskRadius: 'Commercial St, Ibrahim Sahib St, Kamaraj Rd',
+      summary: 'Synthetic fabric warehouse fire in narrow Ibrahim Sahib Street threatens adjoining historic markets, requiring electrical isolation and emergency water relays.',
+      nodes: {
+        'node-nexus': {
+          id: 'ENV-TRIGGER-FIRE',
+          stage: 1,
+          stageLabel: 'Stage 01: Shock Nexus',
+          title: 'Textile Warehouse Fire on Ibrahim Sahib Street',
+          sector: 'FIRE & RESCUE (KSFES)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Synthetic garment inventory fire producing dense toxic smoke in narrow 12-foot alleys, restricting standard fire tender access.',
+          vuln: '9.7',
+          metric: '4 Shops in Danger',
+          metricLabel: 'Structural Threat',
+          ripple: '6 Commercial Blocks',
+          location: 'Ibrahim Sahib Street / Commercial St'
+        },
+        'node-sec-power': {
+          id: 'NODE-SECTOR-POWER-FIRE',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: '11kV Feeder Isolation across 84 Retail Outlets',
+          sector: 'ENERGY (BESCOM)',
+          colorClass: 'text-primary',
+          badgeBg: 'bg-primary/15',
+          desc: 'Immediate power cut to prevent electrical transformer explosion and safeguard firefighters spraying continuous water streams.',
+          vuln: '8.6',
+          metric: '84 Retail Outlets',
+          metricLabel: 'Feeder Isolated',
+          ripple: '2 Distribution Blocks',
+          location: 'Commercial Street Commercial Feeder',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-transit': {
+          id: 'NODE-SECTOR-TRANSIT-FIRE',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Dispensary Road & Kamaraj Road Sealed for Emergency Lane',
+          sector: 'TRAFFIC OPS (BTP)',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'Civilian vehicles diverted from Commercial Street approaches to establish a clean corridor for high-capacity water bowsers and rescue vehicles.',
+          vuln: '8.8',
+          metric: '+34 mins Delay',
+          metricLabel: 'Shivajinagar Queue',
+          ripple: 'Infantry Road Arterials',
+          location: 'Kamaraj Road & Dispensary Road',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-health': {
+          id: 'NODE-SECTOR-HEALTH-FIRE',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Bowring Hospital Smoke Inhalation Trauma Bay Staged',
+          sector: 'PUBLIC HEALTH (DHS / BBMP)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Bowring & Lady Curzon Hospital trauma ward prepared with oxygen respirators and burn treatment protocols for evacuated shopkeepers.',
+          vuln: '8.2',
+          metric: '18 Trauma Beds',
+          metricLabel: 'Triage Standby',
+          ripple: 'Bowring Hospital ER',
+          location: 'Bowring & Lady Curzon Hospital',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-mult-commute': {
+          id: 'NODE-MULT-COMMUTE-FIRE',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'Shivajinagar Bus Station Spillover Congestion',
+          sector: 'TRANSIT + AIR QUALITY',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'Dense smoke plumes drift towards Shivajinagar BMTC terminal; bus departures rerouted via Central Street to avoid smoke inhalation risks.',
+          vuln: '7.6',
+          metric: '25 Buses Re-routed',
+          metricLabel: 'Bus Terminal Egress',
+          ripple: 'Shivajinagar Terminal',
+          location: 'Shivajinagar Bus Station',
+          upstreamFrom: 'node-sec-transit'
+        },
+        'node-mult-health-power': {
+          id: 'NODE-MULT-HEALTH-POWER-FIRE',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'BWSSB Hydrant Water Booster Pressure Drop',
+          sector: 'WATER WORKS (BWSSB)',
+          colorClass: 'text-tertiary',
+          badgeBg: 'bg-tertiary/15',
+          desc: 'Fire engines drawing 8,000 LPM from municipal hydrants causes localized water pressure drop across Tasker Town lines.',
+          vuln: '7.9',
+          metric: '6.5 Bar Booster',
+          metricLabel: 'Hydrant Flow',
+          ripple: 'Tasker Town & Shivaji Nagar',
+          location: 'Tasker Town BWSSB Main Booster',
+          upstreamFrom: 'node-sec-power'
+        },
+        'node-mult-water': {
+          id: 'NODE-MULT-WATER-FIRE',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'Adjoining Heritage Commercial Blocks Evacuated',
+          sector: 'PUBLIC SAFETY (BBMP)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: '150-meter safety cordon evacuated to prevent fire leap across shared wooden attic structures of historic colonial market buildings.',
+          vuln: '8.4',
+          metric: '150m Perimeter',
+          metricLabel: 'Evacuation Zone',
+          ripple: '14,000 Shoppers',
+          location: 'Commercial Street Central Walkway',
+          upstreamFrom: 'node-sec-health'
+        },
+        'node-bottleneck': {
+          id: 'BOTTLENECK-CRITICAL-FIRE',
+          stage: 4,
+          stageLabel: 'Stage 04: Systemic Bottleneck',
+          title: 'Dense Historic Market Conflagration & Route Choke',
+          sector: 'URBAN CONFLAGRATION THREAT',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/20',
+          desc: 'Narrow lane blockages prevent continuous water shuttle, while smoke plume chokes Shivajinagar and emergency access to Bowring Hospital.',
+          vuln: '9.8',
+          metric: 'Critical Blockade',
+          metricLabel: 'Cascade Peak',
+          ripple: 'Shivajinagar Commercial Core',
+          location: 'Central Commercial Core'
+        }
+      },
+      severInterventions: [
+        {
+          id: 'SEVER-A',
+          name: 'Deploy KSFES Foam Tender & Establish 150m Relay Hose Line',
+          agency: 'KSFES Fire Services & BWSSB',
+          action: 'Deploys high-expansion synthetic foam to blanket burning warehouse and establishes high-pressure relay hose from Kamaraj Road.',
+          consequencePrevented: 'Stops fire leap into adjoining retail shops within 18 minutes.',
+          efficiency: '94% Fire Arrest',
+          targetNodeIds: ['node-sec-power-fire', 'node-mult-health-power-fire']
+        },
+        {
+          id: 'SEVER-B',
+          name: 'BTP Clearway & Bowring Hospital Emergency Green Corridor',
+          agency: 'Bengaluru Traffic Police & BBMP Health',
+          action: 'Enforces dedicated emergency clearway along Kamaraj Road exclusively for fire bowsers and ambulances.',
+          consequencePrevented: 'Maintains zero ambulance travel time for burn casualties to Bowring Hospital.',
+          efficiency: '91% Clearway Efficiency',
+          targetNodeIds: ['node-sec-transit-fire', 'node-sec-health-fire']
+        }
+      ]
+    };
+  }
+
+  // 4. SILK BOARD JUNCTION TOTAL GRIDLOCK
+  if (sc.id === 'silk-board-gridlock' || loc.toLowerCase().includes('silk board') || cat === 'traffic') {
+    return {
+      graphId: 'NET-IMPACT-BLR-SILKBOARD',
+      rootStressor: 'Flyover Ramp Blockage',
+      rootStressorDetail: 'Heavy Truck Axle Failure',
+      silosImpacted: '4 Sectors Bound',
+      cascadeVelocity: '1.2 km / 15 mins',
+      citizensAtRisk: sc.affectedPopulation || '~140,000 Commuters',
+      riskRadius: 'Silk Board, Hosur Rd, HSR, BTM, Bellandur',
+      summary: 'Disabled heavy cargo truck on Silk Board flyover halts south-east Bengaluru arterial corridors, stalling emergency hospital transfers and 85 BMTC bus routes.',
+      nodes: {
+        'node-nexus': {
+          id: 'ENV-TRIGGER-SILKBOARD',
+          stage: 1,
+          stageLabel: 'Stage 01: Shock Nexus',
+          title: 'Heavy Truck Breakdown on Silk Board Flyover Ramp',
+          sector: 'TRAFFIC MANAGEMENT (BTP)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Multi-axle truck snapped chassis on narrow flyover ramp towards Outer Ring Road, blocking 2 out of 3 lanes during peak commuting rush.',
+          vuln: '9.8',
+          metric: '9,500 Vehicles',
+          metricLabel: 'Immediate Queue',
+          ripple: '5 South Arterials',
+          location: 'Central Silk Board Junction'
+        },
+        'node-sec-power': {
+          id: 'NODE-SECTOR-TRANSIT-HOSUR',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Hosur Road & Electronic City Expressway Halting',
+          sector: 'TRAFFIC OPS (BTP)',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'North-bound commuter traffic from Electronic City and Bommanahalli crawling at under 4 km/h over a 5.8 km tailback.',
+          vuln: '9.1',
+          metric: '+65 mins Delay',
+          metricLabel: 'Expressway Stall',
+          ripple: 'Electronic City Toll',
+          location: 'Hosur Road / Bommanahalli',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-transit': {
+          id: 'NODE-SECTOR-TRANSIT-ORR',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: 'Outer Ring Road (HSR to Bellandur) Stalled',
+          sector: 'TRANSIT & COMMERCE (BTP)',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'Commuter flow into Bellandur tech corridor frozen. Employees cannot access tech parks; BMTC Vajra buses unable to enter flyover.',
+          vuln: '8.9',
+          metric: '85 BMTC Buses',
+          metricLabel: 'Fleet Trapped',
+          ripple: 'HSR Layout & Bellandur',
+          location: 'Outer Ring Road HSR Junction',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-sec-health': {
+          id: 'NODE-SECTOR-HEALTH-STJOHNS',
+          stage: 2,
+          stageLabel: 'Stage 02: Primary Stress',
+          title: '108 Ambulances Trapped on Route to St. John\'s Hospital',
+          sector: 'PUBLIC HEALTH (108 / DHS)',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Four emergency ambulances transferring cardiac and trauma patients from South Bengaluru unable to negotiate the gridlock on Hosur Road.',
+          vuln: '9.6',
+          metric: '+28 mins EMS Delay',
+          metricLabel: 'Life-Support Risk',
+          ripple: 'St. John\'s Hospital ER',
+          location: 'Hosur Road / St. John\'s Hospital',
+          upstreamFrom: 'node-nexus'
+        },
+        'node-mult-commute': {
+          id: 'NODE-MULT-RESIDENTIAL-BTM',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'BTM Layout Residential Roads Choked by Diverting Cars',
+          sector: 'LOCAL TRANSIT & CITIZEN SAFETY',
+          colorClass: 'text-secondary',
+          badgeBg: 'bg-secondary/15',
+          desc: 'Navigation apps redirecting thousands of vehicles through narrow residential 16th Main in BTM 2nd Stage, blocking local school buses.',
+          vuln: '7.8',
+          metric: 'BTM Gridlocked',
+          metricLabel: 'Spillover Bypass',
+          ripple: 'BTM 1st & 2nd Stage',
+          location: 'BTM Layout 16th Main Road',
+          upstreamFrom: 'node-sec-power'
+        },
+        'node-mult-health-power': {
+          id: 'NODE-MULT-AQI-EXHAUST',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'High Vehicle Exhaust & Idling Air Quality Spike',
+          sector: 'ENVIRONMENT & HEALTH',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/15',
+          desc: 'Thousands of idling diesel trucks and cars elevate localized PM2.5 to 198 µg/m³ around Silk Board underpass.',
+          vuln: '7.5',
+          metric: 'AQI 245 Poor',
+          metricLabel: 'Exhaust Spike',
+          ripple: 'Bommanahalli Ward',
+          location: 'Silk Board Junction Basin',
+          upstreamFrom: 'node-sec-transit'
+        },
+        'node-mult-water': {
+          id: 'NODE-MULT-METRO-FEEDER',
+          stage: 3,
+          stageLabel: 'Stage 03: Cross Multiplier',
+          title: 'Yellow Line Metro Construction Feeder Lane Constriction',
+          sector: 'CIVIC INFRASTRUCTURE (BMRCL)',
+          colorClass: 'text-tertiary',
+          badgeBg: 'bg-tertiary/15',
+          desc: 'Heavy tow trucks navigating around metro construction barricades face tight turning radiuses, delaying physical truck removal.',
+          vuln: '8.2',
+          metric: 'Narrow Clearance',
+          metricLabel: 'Tow Truck Constraint',
+          ripple: 'Metro Construction Zone',
+          location: 'Silk Board Metro Interchange',
+          upstreamFrom: 'node-sec-health'
+        },
+        'node-bottleneck': {
+          id: 'BOTTLENECK-CRITICAL-SILKBOARD',
+          stage: 4,
+          stageLabel: 'Stage 04: Systemic Bottleneck',
+          title: 'South-East Bengaluru Mega-Arterial Paralysis',
+          sector: 'TOTAL METROPOLITAN GRIDLOCK',
+          colorClass: 'text-error',
+          badgeBg: 'bg-error/20',
+          desc: 'Electronic City tech transit, St. John\'s Hospital ambulance lifelines, and inter-state logistics converge into static gridlock.',
+          vuln: '9.9',
+          metric: 'Systemic Stalemate',
+          metricLabel: 'Citywide Choke',
+          ripple: 'Zones 5, 6 & 8',
+          location: 'South-East Bengaluru Highway Mesh'
+        }
+      },
+      severInterventions: [
+        {
+          id: 'SEVER-A',
+          name: 'Deploy 50-Tonne Hydraulic Crane & Heavy Winch Rig #CRN-01',
+          agency: 'Bengaluru Traffic Police & BBMP Disaster Cell',
+          action: 'Lifts disabled multi-axle truck cab onto low-bed recovery flatbed in under 20 minutes.',
+          consequencePrevented: 'Reopens all three flyover lanes, clearing the 9,500-vehicle backlog 2.5 hours faster.',
+          efficiency: '95% Obstacle Clearance',
+          targetNodeIds: ['node-sec-power', 'node-sec-transit']
+        },
+        {
+          id: 'SEVER-B',
+          name: 'BTP Green Motorcycle Pilot Escort & Upstream VMS Rerouting',
+          agency: 'BTP Traffic Enforcement & ITMS Control',
+          action: 'Motorcycle pilots carve an emergency shoulder lane along Hosur Road for St. John\'s ambulances, while digital signs divert traffic at Kudlu Gate.',
+          consequencePrevented: 'Saves critical patients by eliminating ambulance delays and reduces incoming volume by 45%.',
+          efficiency: '90% Ambulance Bypass',
+          targetNodeIds: ['node-sec-health', 'node-mult-commute']
+        }
+      ]
+    };
+  }
+
+  // 5. DYNAMIC GENERATOR FOR ANY OTHER SCENARIO IN BENGALURU
+  return {
+    graphId: `NET-IMPACT-${sc.id.toUpperCase()}`,
+    rootStressor: sc.headline.slice(0, 32),
+    rootStressorDetail: loc,
+    silosImpacted: '4 Sectors Bound',
+    cascadeVelocity: '+15.2% / hr',
+    citizensAtRisk: sc.affectedPopulation || '~25,000 Citizens',
+    riskRadius: sc.zone,
+    summary: `Cascading civic impact model for ${sc.name} at ${sc.locationName}, showing multi-silo propagation across traffic, utilities, and emergency services.`,
+    nodes: {
+      'node-nexus': {
+        id: `ENV-TRIGGER-${sc.id.toUpperCase()}`,
+        stage: 1,
+        stageLabel: 'Stage 01: Shock Nexus',
+        title: sc.name.split(' (')[0],
+        sector: `${sc.category.toUpperCase()} / MUNICIPAL DISPATCH`,
+        colorClass: 'text-error',
+        badgeBg: 'bg-error/15',
+        desc: sc.whatHappened,
+        vuln: '9.5',
+        metric: sc.consequences.traffic.delay || 'Active Stressor',
+        metricLabel: 'Incident Metric',
+        ripple: '4 Primary Sectors',
+        location: sc.locationName
+      },
+      'node-sec-power': {
+        id: `NODE-SEC-POWER-${sc.id.toUpperCase()}`,
+        stage: 2,
+        stageLabel: 'Stage 02: Primary Stress',
+        title: sc.consequences.powerWater.title,
+        sector: 'UTILITIES & INFRASTRUCTURE',
+        colorClass: 'text-primary',
+        badgeBg: 'bg-primary/15',
+        desc: sc.consequences.powerWater.description,
+        vuln: '8.3',
+        metric: sc.consequences.powerWater.homesAffected || 'Utility Safeguard',
+        metricLabel: 'Utility Telemetry',
+        ripple: 'Local Utility Feeders',
+        location: sc.locationName,
+        upstreamFrom: 'node-nexus'
+      },
+      'node-sec-transit': {
+        id: `NODE-SEC-TRANSIT-${sc.id.toUpperCase()}`,
+        stage: 2,
+        stageLabel: 'Stage 02: Primary Stress',
+        title: sc.consequences.traffic.title,
+        sector: 'TRANSIT & MOBILITY (BTP)',
+        colorClass: 'text-secondary',
+        badgeBg: 'bg-secondary/15',
+        desc: sc.consequences.traffic.description,
+        vuln: '8.8',
+        metric: sc.consequences.traffic.delay,
+        metricLabel: 'Corridor Delay',
+        ripple: 'Adjacent Corridors',
+        location: sc.consequences.traffic.detour || sc.locationName,
+        upstreamFrom: 'node-nexus'
+      },
+      'node-sec-health': {
+        id: `NODE-SEC-HEALTH-${sc.id.toUpperCase()}`,
+        stage: 2,
+        stageLabel: 'Stage 02: Primary Stress',
+        title: sc.consequences.healthEmergency.title,
+        sector: 'EMERGENCY MEDICAL & SAFETY (108)',
+        colorClass: 'text-error',
+        badgeBg: 'bg-error/15',
+        desc: sc.consequences.healthEmergency.description,
+        vuln: '8.6',
+        metric: sc.consequences.healthEmergency.ambulanceStatus || 'Medical Readiness',
+        metricLabel: 'ER Readiness',
+        ripple: sc.consequences.healthEmergency.hospitalName,
+        location: sc.consequences.healthEmergency.hospitalName,
+        upstreamFrom: 'node-nexus'
+      },
+      'node-mult-commute': {
+        id: `NODE-MULT-COMMUTE-${sc.id.toUpperCase()}`,
+        stage: 3,
+        stageLabel: 'Stage 03: Cross Multiplier',
+        title: sc.consequences.publicCommute.title,
+        sector: 'TRANSIT + CITIZEN LIFE',
+        colorClass: 'text-secondary',
+        badgeBg: 'bg-secondary/15',
+        desc: sc.consequences.publicCommute.description,
+        vuln: '7.7',
+        metric: sc.consequences.publicCommute.busStatus || 'Transit Adjusted',
+        metricLabel: 'Transit Flow',
+        ripple: 'Public Routes',
+        location: sc.locationName,
+        upstreamFrom: 'node-sec-transit'
+      },
+      'node-mult-health-power': {
+        id: `NODE-MULT-FACILITIES-${sc.id.toUpperCase()}`,
+        stage: 3,
+        stageLabel: 'Stage 03: Cross Multiplier',
+        title: 'Essential Services Backup & Safety Protocols Active',
+        sector: 'HEALTH + INFRASTRUCTURE',
+        colorClass: 'text-primary',
+        badgeBg: 'bg-primary/15',
+        desc: `Municipal services around ${loc} shifted to synchronized continuity protocols to safeguard public life-support and traffic signals.`,
+        vuln: '7.9',
+        metric: 'Continuity Active',
+        metricLabel: 'System Status',
+        ripple: 'Ward Services',
+        location: sc.zone,
+        upstreamFrom: 'node-sec-power'
+      },
+      'node-mult-water': {
+        id: `NODE-MULT-COMMERCE-${sc.id.toUpperCase()}`,
+        stage: 3,
+        stageLabel: 'Stage 03: Cross Multiplier',
+        title: 'Commercial & Residential Perimeter Caution Zone',
+        sector: 'COMMERCE + SAFETY',
+        colorClass: 'text-tertiary',
+        badgeBg: 'bg-tertiary/15',
+        desc: `Local establishments guided through precautionary protocols to prevent crowd panic and keep access lanes unobstructed.`,
+        vuln: '7.3',
+        metric: 'Perimeter Protected',
+        metricLabel: 'Local Ward',
+        ripple: 'Surrounding Streets',
+        location: sc.locationName,
+        upstreamFrom: 'node-sec-health'
+      },
+      'node-bottleneck': {
+        id: `BOTTLENECK-${sc.id.toUpperCase()}`,
+        stage: 4,
+        stageLabel: 'Stage 04: Systemic Bottleneck',
+        title: `Ward-Level Uncoordinated Cascade Vulnerability`,
+        sector: 'SYSTEMIC MULTI-SILO RISK',
+        colorClass: 'text-error',
+        badgeBg: 'bg-error/20',
+        desc: `Without coordinated City OS response, sequential agency delays inflate resolution time to ${sc.comparison.timeToClearOld} with ${sc.comparison.economicLossOld} in damages.`,
+        vuln: '9.4',
+        metric: 'High Cascade Risk',
+        metricLabel: 'Uncoordinated Risk',
+        ripple: 'Metropolitan Grid',
+        location: sc.zone
+      }
+    },
+    severInterventions: [
+      {
+        id: 'SEVER-A',
+        name: sc.cityActions[0] ? `${sc.cityActions[0].dept}: ${sc.cityActions[0].action.slice(0, 50)}...` : 'Automated Inter-Agency Telemetry Synchronization',
+        agency: sc.cityActions[0]?.dept || 'BBMP Unified Command',
+        action: sc.cityActions[0]?.action || 'Coordinates field teams in real time.',
+        consequencePrevented: `Reduces time to clear from ${sc.comparison.timeToClearOld} to ${sc.comparison.timeToClearNew}.`,
+        efficiency: '92% Coordinated Impact',
+        targetNodeIds: ['node-sec-power', 'node-sec-transit']
+      },
+      {
+        id: 'SEVER-B',
+        name: sc.cityActions[1] ? `${sc.cityActions[1].dept}: ${sc.cityActions[1].action.slice(0, 50)}...` : 'BTP Dynamic Bypass & Green Corridor Deployment',
+        agency: sc.cityActions[1]?.dept || 'Bengaluru Traffic Police',
+        action: sc.cityActions[1]?.action || 'Establishes clear alternate route and bypass.',
+        consequencePrevented: `Minimizes transit delay from ${sc.comparison.trafficDelayOld} to ${sc.comparison.trafficDelayNew}.`,
+        efficiency: '89% Route Recovery',
+        targetNodeIds: ['node-sec-health', 'node-mult-commute']
+      }
+    ]
+  };
+}
+
+/**
+ * Returns an executive Coordinated Action Plan (CAP) tailored specifically to ANY scenario.
+ */
+export function getScenarioResponsePlan(sc: ScenarioTemplate): ScenarioResponsePlanData {
+  const loc = sc.locationName.split(' &')[0].split(' (')[0];
+  const cat = sc.category.toLowerCase();
+  const planId = `CAP-2024-${sc.id.toUpperCase()}-BLR`;
+
+  // 1. HEBBAL FLOOD PLAN
+  if (sc.id === 'hebbal-flood' || loc.toLowerCase().includes('hebbal') || (cat === 'flood' && loc.toLowerCase().includes('hebbal'))) {
+    return {
+      planId,
+      title: 'Hebbal Flyover & Airport Expressway Storm Inundation Mitigation Plan',
+      incidentName: sc.name,
+      location: sc.locationName,
+      protocolClass: 'CROSS-SECTORAL CONCURRENT RAPID DRAINAGE',
+      severityLevel: 'LEVEL 3 - CRITICAL ARTERIAL IMPACT',
+      aiConfidence: '96.2%',
+      summary: 'Cross-agency response linking BBMP Stormwater, Bengaluru Traffic Police (BTP), BESCOM Power Ops, and Baptist Hospital to reopen airport transit and restore emergency ambulance access.',
+      targetResolutionWindow: '35 minutes to clear primary highway lanes',
+      projectedDeltas: {
+        cascadeReduction: '-74%',
+        cascadeReductionLabel: 'Submersion Spillover',
+        timeSaved: '2 hrs 25 min',
+        timeSavedLabel: 'Faster Clearance vs Old Silos',
+        economicSaved: sc.budget.disruptionLossPrevented || '₹42 Lakhs',
+        economicSavedLabel: 'Public Delays Prevented'
+      },
+      resourceConflict: {
+        resourceName: 'BBMP High-Capacity 500HP Dewatering Pump Unit #PUMP-04',
+        resourceType: 'High-Volume Dewatering Pump (15,000 LPM)',
+        agencyA: 'BBMP Stormwater Engineering',
+        needA: 'Requisitioned for clearing the sunken underpass near Esteem Mall to reopen 2 lanes for general airport traffic.',
+        agencyB: 'Baptist Hospital & Emergency Medical Services (108)',
+        needB: 'Requisitioned to drain the submerged ambulance triage entrance on Bellary Road to allow incoming ICU cardiac transfers.',
+        aiArbitrationProposal: 'Assign Pump #04 immediately to Baptist Hospital ER entrance to establish a dry ambulance ramp in 12 minutes; reroute KSFES Dewatering Engine #PUMP-02 from Sahakar Nagar to Hebbal underpass sump.',
+        arbitrationFeasibility: '98% (Saves lives first, secondary pump maintains highway clearance within 16 mins)',
+        rationale: 'Protecting human casualty intake at Baptist Hospital takes absolute operational priority over passenger flight delays. Secondary KSFES pump is already positioned 1.8 km away.',
+        status: 'PENDING'
+      },
+      directives: [
+        {
+          stepNumber: 1,
+          priority: 'CRITICAL',
+          priorityColor: 'text-error bg-error/15 border-error/30',
+          agencies: 'BBMP STORMWATER & KSFES RESCUE',
+          leadOfficial: 'Chief Engr. S. Murthy (BBMP Stormwater)',
+          title: 'Deploy 6 High-Power Dewatering Pumps into Hebbal Lake Canal & Evacuate Stranded Drivers',
+          explanation: 'Discharge standing flood runoff from sunken flyover ramp directly into lake overflow channel; deploy 2 inflatable rescue dinghies to assist motorists stalled in deep water.',
+          resourcesCommitted: '6 Heavy Dewatering Pumps (90,000 LPM total), 2 KSFES Rubber Boats, 18 Personnel',
+          executionWindow: 'T-minus 15 mins (Continuous Pumping)',
+          telemetryHook: 'Telemetry: Hebbal Underpass Water Depth Sensor #BLR-WD-04',
+          approved: true,
+          approvedBy: 'DIRECTOR VANCE'
+        },
+        {
+          stepNumber: 2,
+          priority: 'HIGH',
+          priorityColor: 'text-secondary bg-secondary/15 border-secondary/30',
+          agencies: 'BENGALURU TRAFFIC POLICE (BTP)',
+          leadOfficial: 'DCP Traffic North (BTP)',
+          title: 'Activate Hennur-Thanisandra Airport Green Bypass & Baptist Hospital Rear Gate Clearway',
+          explanation: 'Switch traffic signals at Mekhri Circle to divert all airport taxis via Hennur ORR and Bagalur; open dedicated Sanjaynagar service lane exclusively for 108 Baptist ambulances.',
+          resourcesCommitted: '18 Traffic Marshals, 4 Dynamic LED Signboards, 3 Motorcycle Pilots',
+          executionWindow: 'Immediate Dispatch (Operational)',
+          telemetryHook: 'ITMS Corridor Telemetry: Thanisandra Main Road Headway',
+          approved: false
+        },
+        {
+          stepNumber: 3,
+          priority: 'ELEVATED',
+          priorityColor: 'text-primary bg-primary/15 border-primary/30',
+          agencies: 'BESCOM POWER OPS & BWSSB',
+          leadOfficial: 'Superintending Engr. K. Gowda (BESCOM)',
+          title: 'Safely Isolate Submerged Feeder Lines & Restore Sahakar Nagar Residential Power Loop',
+          explanation: 'De-energize waterlogged street furniture conduits to prevent electrocution hazards; reroute Sahakar Nagar residential feeders from the alternate Yelahanka 66kV substation loop.',
+          resourcesCommitted: '2 BESCOM Rapid Lineman Squads, 1 Mobile High-Voltage Insulation Rig',
+          executionWindow: 'T-minus 22 mins',
+          telemetryHook: 'Grid Relay: Feeder Loop #HEB-11KV-08',
+          approved: false
+        },
+        {
+          stepNumber: 4,
+          priority: 'URGENT',
+          priorityColor: 'text-tertiary bg-tertiary/15 border-tertiary/30',
+          agencies: 'BMTC TRANSIT & BBMP WAR ROOM',
+          leadOfficial: 'Director Public Relations & BMTC Operations',
+          title: 'Broadcast Airport Advisory & Deploy 15 BMTC Feeder Shuttles from Nagawara Metro',
+          explanation: 'Send emergency push notifications advising airport passengers to allow 90 extra minutes via Thanisandra; launch electric feeder buses to pick up stranded Manyata commuters.',
+          resourcesCommitted: '15 Low-Floor AC Electric Buses, Citywide Citizen Alert Push',
+          executionWindow: 'T-minus 10 mins',
+          telemetryHook: 'BMTC Fleet GPS Telemetry: Vayu Vajra Route 8 & 9',
+          approved: true,
+          approvedBy: 'COMMISSIONER WAR ROOM'
+        }
+      ]
+    };
+  }
+
+  // 2. CUBBON PARK MISSING CHILD PLAN
+  if (sc.id === 'cubbon-park-search' || loc.toLowerCase().includes('cubbon') || cat === 'search') {
+    return {
+      planId,
+      title: 'Cubbon Park Protocol Amber: Missing Child Perimeter Cordon & SAR Plan',
+      incidentName: sc.name,
+      location: sc.locationName,
+      protocolClass: 'GOLDEN-HOUR MULTI-AGENCY SEARCH & RESCUE',
+      severityLevel: 'LEVEL 1 - URGENT HUMAN LIFE SAFETY',
+      aiConfidence: '98.4%',
+      summary: 'Rapid inter-agency search linking Bengaluru City Police, BBMP Horticulture, Namma Metro Security, and 108 Emergency Medical Services to secure the park perimeter and recover the child.',
+      targetResolutionWindow: '38 minutes (Golden Hour Recovery)',
+      projectedDeltas: {
+        cascadeReduction: '-88%',
+        cascadeReductionLabel: 'Search Area Expansion',
+        timeSaved: '3 hrs 52 min',
+        timeSavedLabel: 'Faster Resolution vs Uncoordinated Search',
+        economicSaved: sc.budget.disruptionLossPrevented || '₹1.8 Lakhs',
+        economicSavedLabel: 'Trauma & Chaos Prevented'
+      },
+      resourceConflict: {
+        resourceName: 'High-Altitude Thermal Imaging Hexacopter Drone #DRN-HEX-02',
+        resourceType: 'FLIR Thermal Imaging Surveillance Drone',
+        agencyA: 'Bengaluru City Police Central SAR Squad',
+        needA: 'Requisitioned for penetrating dense bamboo grove canopy near Bal Bhavan playground.',
+        agencyB: 'BTP Traffic & Perimeter Enforcement',
+        needB: 'Requisitioned to monitor the Queen\'s Road and Kasturba Road park boundary fence for potential pedestrian breaches.',
+        aiArbitrationProposal: 'Assign Thermal Drone #DRN-HEX-02 directly to the inner bamboo grove canopy (critical high-probability search zone); deploy Police K9 Bloodhound Unit #K9-ALPHA and 4 motorcycle marshals to patrol the perimeter boundary.',
+        arbitrationFeasibility: '96% (Maximizes infrared scanning in dense foliage where ground vision is blocked)',
+        rationale: 'Thermal drone is uniquely capable of piercing tree canopy where ground officers cannot see. Perimeter fence is already bordered by streetlights and easily patrolled by motorcycle marshals.',
+        status: 'PENDING'
+      },
+      directives: [
+        {
+          stepNumber: 1,
+          priority: 'CRITICAL',
+          priorityColor: 'text-error bg-error/15 border-error/30',
+          agencies: 'BENGALURU CITY POLICE (CUBBON PARK PS) & CAR K9',
+          leadOfficial: 'Inspector R. Manjunath (Cubbon Park PS)',
+          title: 'Establish 14 Ground Search Grids & Launch K9 Scent Tracking from Bal Bhavan',
+          explanation: 'Cordon Sector A into numbered search grids; deploy certified K9 tracking bloodhound using child\'s clothing scent from toy train area outwards towards lake edge.',
+          resourcesCommitted: '14 Police Search Squads, 1 K9 Canine Unit, 3 Thermal Drone Pilots',
+          executionWindow: 'Immediate (Active Search)',
+          telemetryHook: 'Police Bodycam & Live Drone Infrared Video Stream',
+          approved: true,
+          approvedBy: 'DCP CENTRAL'
+        },
+        {
+          stepNumber: 2,
+          priority: 'HIGH',
+          priorityColor: 'text-secondary bg-secondary/15 border-secondary/30',
+          agencies: 'BBMP HORTICULTURE & BMRCL NAMMA METRO',
+          leadOfficial: 'Deputy Director Horticulture & BMRCL Security Chief',
+          title: 'Seal Vehicle Egress across All 7 Park Gates & Activate Metro Turnstile Screening',
+          explanation: 'Close boom barriers across all 7 gates; gate staff verify all departing adults accompanied by children. Metro security at Cubbon Park & Vidhana Soudha stations verify boarding passengers.',
+          resourcesCommitted: '14 Park Gate Marshals, 6 Metro Turnstile Security Officers',
+          executionWindow: 'T-minus 8 mins (Gates Locked Down)',
+          telemetryHook: 'BMRCL Automated Fare Collection (AFC) Turnstile Telemetry',
+          approved: true,
+          approvedBy: 'DIRECTOR VANCE'
+        },
+        {
+          stepNumber: 3,
+          priority: 'ELEVATED',
+          priorityColor: 'text-primary bg-primary/15 border-primary/30',
+          agencies: 'BESCOM & BBMP WELFARE CELL',
+          leadOfficial: 'Divisional Engr. BESCOM Central Core',
+          title: 'Energize Park High-Mast LED Floodlights & Broadcast Tri-Lingual PA Audio',
+          explanation: 'Switch on full park illumination early to remove shadowed areas; broadcast continuous clear physical description of child in Kannada, English, and Hindi across walking trails.',
+          resourcesCommitted: '100% High-Mast LED Array, 12 Audio PA Stations',
+          executionWindow: 'T-minus 12 mins',
+          telemetryHook: 'BESCOM Central Lighting Loop #CUBBON-LED-01',
+          approved: false
+        },
+        {
+          stepNumber: 4,
+          priority: 'URGENT',
+          priorityColor: 'text-tertiary bg-tertiary/15 border-tertiary/30',
+          agencies: 'DHS GVK-EMRI 108 EMERGENCY MEDICAL SERVICES',
+          leadOfficial: 'Dr. L. Shweta (Head Paramedic 108 EMRI)',
+          title: 'Stage Advanced Pediatric Ambulance & Hydration First Aid at Gate 1',
+          explanation: 'Paramedic van staged with pediatric warming, glucose hydration, and first aid supplies ready for immediate physical evaluation the instant child is located.',
+          resourcesCommitted: '1 Advanced Pediatric Ambulance, 2 Pediatric Paramedics',
+          executionWindow: 'On Site (Hudson Circle Staging)',
+          telemetryHook: '108 Paramedic Vitals Unit #EMS-PED-01',
+          approved: true,
+          approvedBy: 'CHIEF MEDICAL OFFICER'
+        }
+      ]
+    };
+  }
+
+  // 3. COMMERCIAL STREET FIRE PLAN
+  if (sc.id === 'commercial-street-fire' || loc.toLowerCase().includes('commercial') || cat === 'fire') {
+    return {
+      planId,
+      title: 'Commercial Street High-Density Textile Fire Suppression & Cordon Plan',
+      incidentName: sc.name,
+      location: sc.locationName,
+      protocolClass: 'MULTI-STATION STRUCTURAL CONFLAGRATION SUPPRESSION',
+      severityLevel: 'LEVEL 2 - STRUCTURAL FIRE RISK',
+      aiConfidence: '95.8%',
+      summary: 'Integrated response coordinating KSFES Fire Services, BESCOM Grid Isolation, BTP Traffic Control, and Bowring Hospital to suppress textile blaze and protect historic commercial assets.',
+      targetResolutionWindow: '45 minutes to knock down active fire',
+      projectedDeltas: {
+        cascadeReduction: '-82%',
+        cascadeReductionLabel: 'Adjoining Shop Fire Spread',
+        timeSaved: '2 hrs 10 min',
+        timeSavedLabel: 'Faster Containment vs Old Systems',
+        economicSaved: sc.budget.disruptionLossPrevented || '₹32 Lakhs',
+        economicSavedLabel: 'Inventory & Structure Loss Avoided'
+      },
+      resourceConflict: {
+        resourceName: 'BWSSB High-Pressure Water Bowser #WB-03 (12,000 Liters)',
+        resourceType: 'Dedicated High-Volume Water Supply Tanker',
+        agencyA: 'KSFES Fire Ground Command (Frontline Tender)',
+        needA: 'Requisitioned to refill frontline mini-tender spraying water on active textile blaze in narrow Ibrahim Sahib Street.',
+        agencyB: 'KSFES Defensive Exposure Crew',
+        needB: 'Requisitioned to lay a continuous cooling water curtain against adjacent shop #16 to prevent structural fire leap.',
+        aiArbitrationProposal: 'Connect Bowser #WB-03 to frontline attack line through 150m hose relay from Kamaraj Road; connect secondary municipal fire hydrant #HYD-04 (boosted to 8.5 bar by BWSSB) to feed defensive cooling spray.',
+        arbitrationFeasibility: '97% (Suppresses blaze while maintaining complete defensive barrier)',
+        rationale: 'BWSSB can instantly increase municipal hydrant pressure to 8.5 bar via Tasker Town booster station, freeing the mobile bowser for the high-pressure attack tender.',
+        status: 'PENDING'
+      },
+      directives: [
+        {
+          stepNumber: 1,
+          priority: 'CRITICAL',
+          priorityColor: 'text-error bg-error/15 border-error/30',
+          agencies: 'KSFES FIRE & RESCUE SERVICES',
+          leadOfficial: 'Divisional Fire Officer M. Suresh (KSFES)',
+          title: 'Deploy High-Expansion Foam Attack & Establish 150m Hose Relay through Narrow Alleys',
+          explanation: 'Advance rapid mini tenders into Ibrahim Sahib Street; lay 150-meter heavy hose from Kamaraj Road hydrant to blanket synthetic fabrics with high-expansion fire suppressant foam.',
+          resourcesCommitted: '6 Fire Tenders, 2 Foam Units, 1 Turn-Table Ladder, 28 Firefighters',
+          executionWindow: 'Immediate (Active Attack)',
+          telemetryHook: 'KSFES Ground Pressure Telemetry: 9.2 Bar Delivery',
+          approved: true,
+          approvedBy: 'DIRECTOR VANCE'
+        },
+        {
+          stepNumber: 2,
+          priority: 'HIGH',
+          priorityColor: 'text-primary bg-primary/15 border-primary/30',
+          agencies: 'BESCOM POWER DISTRIBUTION & BWSSB',
+          leadOfficial: 'Executive Engr. BESCOM Shivajinagar',
+          title: 'Isolate 11kV Feeder Block & Boost Municipal Hydrant Pressure to 8.5 Bar',
+          explanation: 'De-energize overhead commercial lines supplying 84 shops to protect firefighters from electrical shock; BWSSB activates Tasker Town booster pumps to ensure maximum water delivery.',
+          resourcesCommitted: 'BESCOM Feeder Squad, BWSSB Tasker Town Pumping Station Team',
+          executionWindow: 'T-minus 10 mins',
+          telemetryHook: 'BWSSB Water Main Sensor #HYD-TASKER-02',
+          approved: false
+        },
+        {
+          stepNumber: 3,
+          priority: 'ELEVATED',
+          priorityColor: 'text-secondary bg-secondary/15 border-secondary/30',
+          agencies: 'BENGALURU TRAFFIC POLICE (BTP)',
+          leadOfficial: 'ACP Traffic East Division (BTP)',
+          title: 'Seal Dispensary Road & Kamaraj Road to Form Dedicated Emergency Water Corridor',
+          explanation: 'Block civilian vehicular access into Commercial Street core; maintain uninterrupted clearway along Kamaraj Road to Bowring Hospital and water refill points.',
+          resourcesCommitted: '12 Traffic Marshals, Tow Cruiser, Variable Message Signs',
+          executionWindow: 'Operational Cordon',
+          telemetryHook: 'ITMS Kamaraj Road Travel Time Index',
+          approved: false
+        },
+        {
+          stepNumber: 4,
+          priority: 'URGENT',
+          priorityColor: 'text-tertiary bg-tertiary/15 border-tertiary/30',
+          agencies: 'BBMP HEALTH CELL & BOWRING HOSPITAL ER',
+          leadOfficial: 'Medical Superintendent (Bowring Hospital)',
+          title: 'Activate Smoke Inhalation Triage Ward & Evacuate 150m Merchant Perimeter',
+          explanation: 'Evacuate shoppers and shop assistants within 150 meters to prevent toxic smoke inhalation; stage 2 advanced ambulances at Central Street exit.',
+          resourcesCommitted: '2 ALS Ambulances, 18 Hospital ER Trauma Beds, Police Marshals',
+          executionWindow: 'T-minus 15 mins',
+          telemetryHook: 'Bowring Hospital ER Trauma Bed Occupancy',
+          approved: true,
+          approvedBy: 'COMMISSIONER WAR ROOM'
+        }
+      ]
+    };
+  }
+
+  // 4. SILK BOARD JUNCTION PLAN
+  if (sc.id === 'silk-board-gridlock' || loc.toLowerCase().includes('silk board') || cat === 'traffic') {
+    return {
+      planId,
+      title: 'Silk Board Multi-Axle Breakdown & Arterial Recovery Action Plan',
+      incidentName: sc.name,
+      location: sc.locationName,
+      protocolClass: 'MEGA-CORRIDOR MULTI-AGENCY GRIDLOCK UNBLOCKING',
+      severityLevel: 'LEVEL 3 - CRITICAL TRANSIT BOTTLENECK',
+      aiConfidence: '97.1%',
+      summary: 'Rapid tactical unblocking coordinating BTP Traffic Police, BBMP Disaster Winch Teams, BMTC Feeder Operations, and St. John\'s Hospital EMS green corridors.',
+      targetResolutionWindow: '28 minutes to clear disabled truck and restore 3 lanes',
+      projectedDeltas: {
+        cascadeReduction: '-78%',
+        cascadeReductionLabel: 'Outer Ring Road Spillover',
+        timeSaved: '2 hrs 40 min',
+        timeSavedLabel: 'Faster Gridlock Dissipation',
+        economicSaved: sc.budget.disruptionLossPrevented || '₹58 Lakhs',
+        economicSavedLabel: 'Commuter Fuel & Productive Hours Saved'
+      },
+      resourceConflict: {
+        resourceName: 'Heavy Hydraulic 50-Tonne Recovery Crane Unit #CRN-01',
+        resourceType: '50-Tonne Industrial Hydraulic Recovery Crane',
+        agencyA: 'BTP Traffic Recovery Operations (Silk Board Flyover)',
+        needA: 'Requisitioned to lift disabled multi-axle freight truck whose broken rear axle has jammed both lanes on the flyover ramp.',
+        agencyB: 'BMTC Central Operations (Bommanahalli Ramp)',
+        needB: 'Requested to pull a broken-down BMTC low-floor bus that stalled while attempting to maneuver around the tailback queue.',
+        aiArbitrationProposal: 'Dispatch 50-Tonne Crane #CRN-01 directly to the Silk Board flyover truck (root bottleneck holding 9,500 vehicles); deploy auxiliary 20-tonne commercial winch truck #CRN-02 to tow the BMTC bus to the shoulder at Bommanahalli.',
+        arbitrationFeasibility: '99% (Clears root systemic blockage while resolving secondary bus stall simultaneously)',
+        rationale: 'The truck on the flyover ramp is the root causal node causing the entire 5.8 km tailback. 20-Tonne auxiliary winch is completely adequate for the BMTC bus.',
+        status: 'PENDING'
+      },
+      directives: [
+        {
+          stepNumber: 1,
+          priority: 'CRITICAL',
+          priorityColor: 'text-error bg-error/15 border-error/30',
+          agencies: 'BTP TRAFFIC RECOVERY & BBMP INFRASTRUCTURE',
+          leadOfficial: 'Traffic ACP South-East Division (BTP)',
+          title: 'Deploy 50-Tonne Hydraulic Crane #CRN-01 to Winch Disabled Truck onto Low-Bed Trailer',
+          explanation: 'Hook crane rigging to disabled truck chassis; lift axle clear of road surface and winch onto heavy flatbed recovery trailer to reopen flyover lanes within 20 minutes.',
+          resourcesCommitted: '50-Tonne Hydraulic Crane, Low-Bed Recovery Trailer, 8 Mechanical Technicians',
+          executionWindow: 'Immediate (Active Recovery)',
+          telemetryHook: 'BTP Traffic Camera #CAM-SILK-02 Flyover Live Stream',
+          approved: true,
+          approvedBy: 'DIRECTOR VANCE'
+        },
+        {
+          stepNumber: 2,
+          priority: 'HIGH',
+          priorityColor: 'text-secondary bg-secondary/15 border-secondary/30',
+          agencies: 'BTP MOTORCYCLE PILOT SQUAD & 108 EMS',
+          leadOfficial: 'Head Constable N. Raju (BTP Green Pilot)',
+          title: 'Carve Dedicated Life-Support Green Corridor on Hosur Road for St. John\'s Ambulances',
+          explanation: 'Four motorcycle pilots with sirens clear an emergency path along the right shoulder of Hosur Road, guiding 108 ambulances directly into St. John\'s Hospital triage without delays.',
+          resourcesCommitted: '4 High-Speed Police Pilot Motorcycles, 2 Patrol Interceptors',
+          executionWindow: 'Continuous Green Pilot Escort',
+          telemetryHook: '108 Paramedic GPS Route Telemetry to St. John\'s ER',
+          approved: true,
+          approvedBy: 'DCP TRAFFIC'
+        },
+        {
+          stepNumber: 3,
+          priority: 'ELEVATED',
+          priorityColor: 'text-primary bg-primary/15 border-primary/30',
+          agencies: 'BTP INTELLIGENT TRAFFIC CONTROL & ITMS',
+          leadOfficial: 'ITMS Operations Commander (BTP)',
+          title: 'Activate Dynamic Variable Signs at Kudlu Gate & Reroute Traffic via Haralur Road',
+          explanation: 'Update digital LED matrix signs at Electronic City exit and Kudlu Gate advising drivers to divert via Haralur Road to Sarjapur and Bannerghatta Road, reducing incoming volume by 45%.',
+          resourcesCommitted: '6 Variable LED Signboards, BTP Traffic Radio Broadcasts',
+          executionWindow: 'T-minus 5 mins (Active Messaging)',
+          telemetryHook: 'ITMS Electronic City Expressway Traffic Volume Counter',
+          approved: false
+        },
+        {
+          stepNumber: 4,
+          priority: 'URGENT',
+          priorityColor: 'text-tertiary bg-tertiary/15 border-tertiary/30',
+          agencies: 'BMTC SOUTH ZONE OPERATIONS',
+          leadOfficial: 'Chief Traffic Manager (BMTC)',
+          title: 'Launch 12 Vajra AC Feeder Shuttles Originating Past Silk Board Bottleneck at HSR',
+          explanation: 'Ferry stranded tech employees from HSR Layout BDA Complex along the Outer Ring Road to Bellandur and Marathahalli IT parks, bypassing the jammed junction entirely.',
+          resourcesCommitted: '12 Vajra AC Buses, 6-minute Headway Service Wave',
+          executionWindow: 'T-minus 12 mins',
+          telemetryHook: 'BMTC Smart Card & GPS Passenger Ingress Telemetry',
+          approved: false
+        }
+      ]
+    };
+  }
+
+  // 5. DYNAMIC GENERATOR FOR ANY OTHER SCENARIO
+  const conflictResourceName = sc.dispatchedAssets?.[0]?.name || 'Municipal Rapid Interceptor Unit #AST-01';
+  const conflictSecondaryName = sc.dispatchedAssets?.[1]?.name || 'Secondary Auxiliary Support Rig #AST-02';
+
+  return {
+    planId,
+    title: `Coordinated Incident Response & Multi-Agency Action Plan: ${sc.name.split(' (')[0]}`,
+    incidentName: sc.name,
+    location: sc.locationName,
+    protocolClass: 'UNIFIED MUNICIPAL COORDINATED INCIDENT PROTOCOL',
+    severityLevel: 'LEVEL 2 - COORDINATED OPERATIONAL RESPONSE',
+    aiConfidence: '95.4%',
+    summary: `Synthesized cross-department mitigation plan linking BBMP, Bengaluru Traffic Police, BESCOM, and emergency healthcare providers to contain ${sc.name} at ${sc.locationName} and prevent systemic cascading delays.`,
+    targetResolutionWindow: `${sc.comparison.timeToClearNew} (Target Resolution)`,
+    projectedDeltas: {
+      cascadeReduction: '-72%',
+      cascadeReductionLabel: 'Cross-Sector Vulnerability',
+      timeSaved: `${sc.comparison.timeToClearNew} vs ${sc.comparison.timeToClearOld}`,
+      timeSavedLabel: 'Faster Incident Clearance',
+      economicSaved: sc.budget.disruptionLossPrevented,
+      economicSavedLabel: 'Public Delays & Damage Avoided'
+    },
+    resourceConflict: {
+      resourceName: conflictResourceName,
+      resourceType: 'Primary Field Operational Unit',
+      agencyA: sc.cityActions[0]?.dept || 'Primary Municipal Response Agency',
+      needA: `Requisitioned for immediate containment at ground zero near ${sc.locationName}.`,
+      agencyB: sc.cityActions[1]?.dept || 'Secondary Transit / Safety Agency',
+      needB: `Requisitioned to safeguard the surrounding perimeter and clear bypass traffic.`,
+      aiArbitrationProposal: `Assign ${conflictResourceName} to ground zero containment for rapid stabilization; redeploy ${conflictSecondaryName} to maintain perimeter bypass and traffic smoothing.`,
+      arbitrationFeasibility: '96% (Optimal multi-silo resource balance)',
+      rationale: `Ground-zero containment arrests the root stressor faster, reducing downstream requirements for the secondary agency by 68%.`,
+      status: 'PENDING'
+    },
+    directives: [
+      {
+        stepNumber: 1,
+        priority: 'CRITICAL',
+        priorityColor: 'text-error bg-error/15 border-error/30',
+        agencies: sc.cityActions[0]?.dept || 'BBMP UNIFIED FIELD COMMAND',
+        leadOfficial: 'Field Response Commander (Incident Zone)',
+        title: `Ground-Zero Stabilization & Containment at ${loc}`,
+        explanation: sc.cityActions[0]?.action || sc.whatHappened,
+        resourcesCommitted: `${sc.dispatchedAssets?.length || 6} Specialized Field Units Assigned`,
+        executionWindow: 'Immediate Dispatch',
+        telemetryHook: 'Telemetry: Ward Level Incident Sensor Mesh',
+        approved: true,
+        approvedBy: 'DIRECTOR VANCE'
+      },
+      {
+        stepNumber: 2,
+        priority: 'HIGH',
+        priorityColor: 'text-secondary bg-secondary/15 border-secondary/30',
+        agencies: 'BENGALURU TRAFFIC POLICE (BTP)',
+        leadOfficial: 'Traffic ACP Division Commander (BTP)',
+        title: `Arterial Rerouting & Traffic Bypass along ${sc.consequences.traffic.detour || sc.locationName}`,
+        explanation: sc.consequences.traffic.description,
+        resourcesCommitted: 'Traffic Marshals, Signal Priority & Route Bypass Active',
+        executionWindow: 'T-minus 10 mins',
+        telemetryHook: 'ITMS Smart Signal Adaptive Loop',
+        approved: false
+      },
+      {
+        stepNumber: 3,
+        priority: 'ELEVATED',
+        priorityColor: 'text-primary bg-primary/15 border-primary/30',
+        agencies: 'UTILITY & ESSENTIAL SERVICES (BESCOM / BWSSB)',
+        leadOfficial: 'Executive Engineer (Utility Operations)',
+        title: `Protect Essential Grid Infrastructure & Life-Support Facilities`,
+        explanation: sc.consequences.powerWater.description,
+        resourcesCommitted: 'Utility Technicians & Continuous Grid Monitoring',
+        executionWindow: 'T-minus 20 mins',
+        telemetryHook: 'Substation Load & Pressure Telemetry',
+        approved: false
+      },
+      {
+        stepNumber: 4,
+        priority: 'URGENT',
+        priorityColor: 'text-tertiary bg-tertiary/15 border-tertiary/30',
+        agencies: 'PUBLIC TRANSIT & CITIZEN ADVISORY (BMTC / WAR ROOM)',
+        leadOfficial: 'BBMP War Room Duty Officer',
+        title: `Citizen Safety Advisory Broadcast & Public Transit Route Smoothing`,
+        explanation: `${sc.consequences.publicCommute.citizenTip} Transit advisory: ${sc.consequences.publicCommute.description}`,
+        resourcesCommitted: 'Citizen Alert Notification Mesh & Transit Headway Adjustments',
+        executionWindow: 'T-minus 15 mins',
+        telemetryHook: 'Citizen Notification Mesh Gateway',
+        approved: true,
+        approvedBy: 'COMMISSIONER WAR ROOM'
+      }
+    ]
+  };
+}

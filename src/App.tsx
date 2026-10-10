@@ -152,11 +152,19 @@ export default function App() {
           )}
 
           {activeTab === 'citywide-impact-chain' && (
-            <CitywideImpactChain onNavigateTab={handleTabChange} />
+            <CitywideImpactChain
+              onNavigateTab={handleTabChange}
+              activeScenario={activeSimulationScenario}
+              onSelectScenario={handleSimulationScenarioChange}
+            />
           )}
 
           {activeTab === 'ai-response-planner' && (
-            <AIResponsePlanner onNavigateTab={handleTabChange} />
+            <AIResponsePlanner
+              onNavigateTab={handleTabChange}
+              activeScenario={activeSimulationScenario}
+              onSelectScenario={handleSimulationScenarioChange}
+            />
           )}
 
           {activeTab === 'what-if-simulation-lab' && (

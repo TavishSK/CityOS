@@ -1,192 +1,237 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  ScenarioTemplate,
+  ScenarioImpactChainData,
+  ScenarioImpactNode,
+  PRESET_SCENARIOS,
+  getScenarioImpactChain,
+  getStoredActiveSimulation,
+  storeActiveSimulation
+} from '../services/simulationData';
 
 interface CitywideImpactChainProps {
   onNavigateTab: (tab: any) => void;
+  activeScenario?: ScenarioTemplate;
+  onSelectScenario?: (sc: ScenarioTemplate) => void;
 }
 
-export const CitywideImpactChain: React.FC<CitywideImpactChainProps> = ({ onNavigateTab }) => {
+export const CitywideImpactChain: React.FC<CitywideImpactChainProps> = ({
+  onNavigateTab,
+  activeScenario: propActiveScenario,
+  onSelectScenario
+}) => {
+  // Sync scenario with props, localStorage, and window events
+  const [currentScenario, setCurrentScenario] = useState<ScenarioTemplate>(() => {
+    return propActiveScenario || getStoredActiveSimulation();
+  });
+
+  useEffect(() => {
+    if (propActiveScenario) {
+      setCurrentScenario(propActiveScenario);
+    }
+  }, [propActiveScenario]);
+
+  useEffect(() => {
+    const handleSimChange = (e: any) => {
+      if (e.detail) {
+        setCurrentScenario(e.detail);
+      }
+    };
+    window.addEventListener('blr_cityos_simulation_changed', handleSimChange);
+    return () => window.removeEventListener('blr_cityos_simulation_changed', handleSimChange);
+  }, []);
+
+  // Compute dynamic causal impact topology for the active scenario
+  const chainData: ScenarioImpactChainData = useMemo(() => {
+    return getScenarioImpactChain(currentScenario);
+  }, [currentScenario]);
+
+  // Selected node for detailed inspector panel
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('node-nexus');
+
+  // Reset selected node whenever scenario changes
+  useEffect(() => {
+    setSelectedNodeId('node-nexus');
+  }, [currentScenario.id]);
+
+  // Interactive circuit breaker severing states
   const [showSeverLines, setShowSeverLines] = useState(true);
-  const [selectedNodeId, setSelectedNodeId] = useState('node-substation-04');
-  const [severDeployed, setSeverDeployed] = useState(false);
+  const [severADeployed, setSeverADeployed] = useState(false);
+  const [severBDeployed, setSeverBDeployed] = useState(false);
   const [isSimulatingAlternative, setIsSimulatingAlternative] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const nodeData: Record<string, {
-    id: string;
-    title: string;
-    category: string;
-    colorClass: string;
-    desc: string;
-    vuln: string;
-    ripple: string;
-  }> = {
-    'node-nexus': {
-      id: 'ENV-TRIGGER-01',
-      title: 'Extreme Heat Index 42.4°C Peak',
-      category: 'ENVIRONMENTAL TELEMETRY MESH (IMD BENGALURU)',
-      colorClass: 'text-error',
-      desc: 'Sustained solar radiation index 9.4 with asphalt albedo re-radiation. Generates systemic heat stress across open power lines, road surfaces, and outdoor human populations across Bengaluru.',
-      vuln: '9.9',
-      ripple: '12 Nodes'
-    },
-    'node-substation-04': {
-      id: 'NODE-SUBSTATION-04',
-      title: 'HAL Substation 04 Transformer Thermal Overload',
-      category: 'PRIMARY SECTOR: ENERGY OPERATIONS (BESCOM)',
-      colorClass: 'text-primary',
-      desc: 'Critical 132/66kV municipal transformer core temperature reached 104°C due to sustained high ambient heat combined with +24% peak air-conditioning refrigeration load from Zone 4 commercial & tech towers.',
-      vuln: '8.9',
-      ripple: '4 Nodes'
-    },
-    'node-road-bitumen': {
-      id: 'NODE-TRANSIT-BITUMEN',
-      title: 'Bitumen Track Softening along Outer Ring Road',
-      category: 'PRIMARY SECTOR: TRANSIT AUTHORITY (BTP & BBMP)',
-      colorClass: 'text-secondary',
-      desc: 'Surface asphalt temperatures exceeding 58°C causing road surface rutting along Silk Board and Bellandur Outer Ring Road. Heavy emergency transport and BMTC buses restricted to 25 km/h.',
-      vuln: '6.4',
-      ripple: '3 Nodes'
-    },
-    'node-heatstroke-surge': {
-      id: 'NODE-HEALTH-DEHYDRATION',
-      title: 'Severe Dehydration & Heat Stroke Surge',
-      category: 'PRIMARY SECTOR: PUBLIC HEALTH (BBMP / DHS)',
-      colorClass: 'text-error',
-      desc: 'Ambulance dispatches spiked +310 calls/hour. Emergency departments in St. John\'s, Bowring, and Victoria hospitals at 108% nominal triage bed capacity.',
-      vuln: '8.7',
-      ripple: '5 Nodes'
-    },
-    'node-icu-generator': {
-      id: 'NODE-HEALTH-GENSET',
-      title: 'St. John\'s & Bowring ICU Generator Switch',
-      category: 'SECONDARY MULTIPLIER: HEALTH + ENERGY',
-      colorClass: 'text-error',
-      desc: 'Main grid disconnect tripped by voltage sag protection. Backup diesel reserves at 82% fuel; continuous emergency load consumes 420 liters per operating hour.',
-      vuln: '7.8',
-      ripple: '2 Nodes'
-    },
-    'node-signals-dark': {
-      id: 'NODE-TRANSIT-SIGNALS',
-      title: 'Silk Board & Corridor Signals Offline',
-      category: 'SECONDARY MULTIPLIER: TRAFFIC OPERATIONS (BTP)',
-      colorClass: 'text-secondary',
-      desc: '14 key intersection controllers along Old Airport Road & Silk Board lost grid synchronization. Ambulance transit delays inflated by +18.4 minutes across primary medical access routes.',
-      vuln: '8.2',
-      ripple: '4 Nodes'
-    },
-    'node-water-pressure': {
-      id: 'NODE-WATER-PRESSURE',
-      title: 'Zone 4 BWSSB Municipal Water Pressure Drop',
-      category: 'SECONDARY MULTIPLIER: WATER WORKS (BWSSB)',
-      colorClass: 'text-tertiary',
-      desc: 'Cooling center HVAC chillers and emergency misting drew 15 PSI localized pressure loss. Impairs firefighting and emergency water reserves.',
-      vuln: '5.9',
-      ripple: '2 Nodes'
-    },
-    'node-bottleneck-alpha': {
-      id: 'BOTTLENECK-ALPHA-CRITICAL',
-      title: 'Emergency Corridor Paralysis Bottleneck',
-      category: 'STAGE 4 CRITICAL MULTI-SILO BOTTLENECK',
-      colorClass: 'text-error',
-      desc: 'HAL Substation 4 degradation directly starves the traffic signal grid on Old Airport Road while concurrently flooding the hospital route with heatstroke emergencies, creating catastrophic response gridlock.',
-      vuln: '9.8',
-      ripple: '8 Silos'
+  // Active inspected node data
+  const activeNode: ScenarioImpactNode =
+    chainData.nodes[selectedNodeId] || chainData.nodes['node-nexus'] || Object.values(chainData.nodes)[0];
+
+  const handleSelectPresetScenario = (scenarioId: string) => {
+    const preset = PRESET_SCENARIOS[scenarioId];
+    if (preset) {
+      setCurrentScenario(preset);
+      storeActiveSimulation(preset);
+      if (onSelectScenario) {
+        onSelectScenario(preset);
+      }
+      setSeverADeployed(false);
+      setSeverBDeployed(false);
+      setToastMessage(`Switched impact model to: "${preset.name}"`);
+      setTimeout(() => setToastMessage(null), 3000);
     }
   };
 
-  const activeNode = nodeData[selectedNodeId] || nodeData['node-substation-04'];
+  const handleToggleSeverA = () => {
+    const next = !severADeployed;
+    setSeverADeployed(next);
+    const intervention = chainData.severInterventions[0];
+    if (next) {
+      setToastMessage(`CIRCUIT SEVERED: Deployed ${intervention?.name || 'Intervention A'}. Downstream cascade arrested!`);
+    } else {
+      setToastMessage(`Circuit restored to live cascade evaluation.`);
+    }
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleToggleSeverB = () => {
+    const next = !severBDeployed;
+    setSeverBDeployed(next);
+    const intervention = chainData.severInterventions[1];
+    if (next) {
+      setToastMessage(`GREEN CORRIDOR SEVERED: Deployed ${intervention?.name || 'Intervention B'}. Life-support route isolated!`);
+    } else {
+      setToastMessage(`Circuit restored to baseline.`);
+    }
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const handleSimulateAlternative = () => {
     setIsSimulatingAlternative(true);
     setTimeout(() => {
       setIsSimulatingAlternative(false);
-      setToastMessage('Alternative Cutoff points calculated: Path B yields 91.2% stabilization.');
-      setTimeout(() => setToastMessage(null), 3000);
-    }, 1200);
+      setToastMessage(`Alternative Cutoff Simulation: Secondary bypass yields 93.4% stabilization for ${currentScenario.locationName.split(' &')[0]}!`);
+      setTimeout(() => setToastMessage(null), 3500);
+    }, 1100);
   };
 
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(nodeData, null, 2));
+    const exportPayload = {
+      scenario: currentScenario.name,
+      location: currentScenario.locationName,
+      chainData,
+      severStatus: { severA: severADeployed, severB: severBDeployed },
+      exportedAt: new Date().toISOString()
+    };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
     const dlAnchorElem = document.createElement('a');
     dlAnchorElem.setAttribute('href', dataStr);
-    dlAnchorElem.setAttribute('download', 'Bengaluru_Causal_Topology.json');
+    dlAnchorElem.setAttribute('download', `Bengaluru_Impact_Chain_${currentScenario.id}.json`);
     dlAnchorElem.click();
+    setToastMessage('Causal graph topology exported as JSON!');
+    setTimeout(() => setToastMessage(null), 2500);
   };
 
+  // Stage nodes groupings for the visual canvas
+  const stage1Node = chainData.nodes['node-nexus'];
+  const stage2Nodes = [
+    chainData.nodes['node-sec-power'],
+    chainData.nodes['node-sec-transit'],
+    chainData.nodes['node-sec-health']
+  ].filter(Boolean);
+  const stage3Nodes = [
+    chainData.nodes['node-mult-commute'],
+    chainData.nodes['node-mult-health-power'],
+    chainData.nodes['node-mult-water']
+  ].filter(Boolean);
+  const stage4Node = chainData.nodes['node-bottleneck'];
+
   return (
-    <div className="flex flex-col w-full pb-12">
+    <div className="flex flex-col w-full pb-16">
       {/* Top Telemetry & Scenario Context Banner */}
-      <div className="relative w-full bg-[#171b26] rounded-xl p-4 mb-4 shadow-xl border border-[#262a35] overflow-hidden">
+      <div className="relative w-full bg-[#171b26] rounded-2xl p-5 mb-5 shadow-xl border border-[#262a35] overflow-hidden">
         <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-gradient-to-br from-primary/10 via-error/5 to-transparent blur-3xl pointer-events-none"></div>
         <div className="absolute -left-10 -bottom-10 w-64 h-64 rounded-full bg-tertiary/5 blur-2xl pointer-events-none"></div>
+
         <div className="relative z-10 flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
           <div className="flex flex-col gap-1 max-w-4xl">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-error/15 text-error font-data-mono-sm text-data-mono-sm border border-error/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-error animate-ping"></span>
-                ROOT CAUSAL TRIGGER IDENTIFIED
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-error/15 text-error font-mono text-xs border border-error/30 font-bold">
+                <span className="w-2 h-2 rounded-full bg-error animate-ping"></span>
+                ACTIVE CAUSAL TOPOLOGY
               </span>
-              <span className="px-2 py-0.5 rounded bg-[#262a35] text-primary font-data-mono-sm text-data-mono-sm border border-[#3d494c]">
-                GRAPH_ID: NET-IMPACT-7789A
+              <span className="px-2 py-0.5 rounded bg-[#262a35] text-primary font-mono text-xs border border-[#3d494c]">
+                GRAPH_ID: {chainData.graphId}
               </span>
-              <span className="px-2 py-0.5 rounded bg-[#1c1f2a] text-on-surface-variant font-data-mono-sm text-data-mono-sm">
-                CYCLE RUN: T+03:42:18 IST
+              <span className="px-2.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/30 font-mono text-xs font-semibold flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px]">sync</span>
+                Derived from What-If Simulation
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-[#262a35] flex items-center justify-center flex-shrink-0 text-primary border border-[#3d494c]">
+
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-[#262a35] flex items-center justify-center flex-shrink-0 text-primary border border-[#3d494c] shadow-inner">
                 <span className="material-symbols-outlined text-[28px]">account_tree</span>
               </div>
               <div>
-                <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
-                  Citywide Impact Chain: Cross-Silo Causal Topology — Bengaluru
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2 flex-wrap">
+                  <span>Citywide Impact Chain: {currentScenario.name.split(' (')[0]}</span>
                 </h1>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Predictive neural modeling of cascading systemic collapse across municipal infrastructures (BESCOM, BBMP, BMRCL, BTP, BWSSB) under extreme stressors.
+                <p className="text-xs sm:text-sm text-on-surface-variant mt-0.5 max-w-2xl leading-relaxed">
+                  {chainData.summary}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Incident Meta Metrics Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a0e18]/80 backdrop-blur-md p-3 rounded-xl border border-[#262a35]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0a0e18]/80 backdrop-blur-md p-3.5 rounded-xl border border-[#262a35]">
             <div className="flex flex-col">
-              <span className="font-label-caps text-label-caps uppercase text-outline">Root Stressor</span>
-              <span className="font-headline-sm text-headline-sm text-error mt-0.5 font-bold">42.4°C Peak</span>
-              <span className="font-data-mono-sm text-data-mono-sm text-on-surface-variant">L3 Heatwave Delta</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-outline">Root Stressor</span>
+              <span className="text-sm sm:text-base font-bold text-error mt-0.5 truncate">{chainData.rootStressor}</span>
+              <span className="text-[10px] font-mono text-on-surface-variant truncate">{chainData.rootStressorDetail}</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-label-caps text-label-caps uppercase text-outline">Silos Impacted</span>
-              <span className="font-headline-sm text-headline-sm text-primary mt-0.5 font-bold">5 Portfolios</span>
-              <span className="font-data-mono-sm text-data-mono-sm text-tertiary">38 Nodes Bound</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-outline">Silos Impacted</span>
+              <span className="text-sm sm:text-base font-bold text-primary mt-0.5">{chainData.silosImpacted}</span>
+              <span className="text-[10px] font-mono text-tertiary">BBMP • BTP • BESCOM • 108</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-label-caps text-label-caps uppercase text-outline">Cascade Velocity</span>
-              <span className="font-headline-sm text-headline-sm text-error mt-0.5 font-bold">+14.2% / hr</span>
-              <span className="font-data-mono-sm text-data-mono-sm text-error">Unchecked Surge</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-outline">Cascade Velocity</span>
+              <span className="text-sm sm:text-base font-bold text-amber-400 mt-0.5">{chainData.cascadeVelocity}</span>
+              <span className="text-[10px] font-mono text-amber-400/80">Propagation Rate</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-label-caps text-label-caps uppercase text-outline">Risk Radius</span>
-              <span className="font-headline-sm text-headline-sm text-secondary mt-0.5 font-bold">420k Citizens</span>
-              <span className="font-data-mono-sm text-data-mono-sm text-on-surface-variant">Zones 2, 4 &amp; 7</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-outline">Risk Radius</span>
+              <span className="text-sm sm:text-base font-bold text-emerald-400 mt-0.5 truncate">{chainData.citizensAtRisk}</span>
+              <span className="text-[10px] font-mono text-on-surface-variant truncate">{chainData.riskRadius}</span>
             </div>
           </div>
         </div>
 
         {/* Graph Global Control Toolbar */}
-        <div className="mt-3 pt-3 flex flex-wrap items-center justify-between gap-3 bg-[#1c1f2a]/60 rounded-lg px-3 py-2 border-t border-[#262a35]">
+        <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-3 bg-[#1c1f2a]/70 rounded-xl px-3.5 py-2.5 border border-[#262a35]">
           <div className="flex flex-wrap items-center gap-3">
+            {/* Simulation Context Selector */}
             <div className="flex items-center gap-2">
-              <span className="font-label-caps text-label-caps uppercase text-outline">Nexus Incident:</span>
-              <select className="bg-[#262a35] font-data-mono-sm text-data-mono-sm text-primary px-3 py-1.5 rounded-lg focus:outline-none cursor-pointer border border-[#3d494c]">
-                <option>HEATWAVE ALPHA: 42°C Ambient Peak (Active)</option>
-                <option>SILK BOARD &amp; ORR ARTERIAL FLOOD CHOKE</option>
-                <option>PEENYA SUB-07 MASTER GRID FIRE RISK</option>
-                <option>CAUVERY STAGE-IV WATER MAIN PRESSURE LOSS</option>
+              <span className="text-xs font-mono text-outline uppercase font-semibold">Nexus Incident:</span>
+              <select
+                value={currentScenario.id}
+                onChange={(e) => handleSelectPresetScenario(e.target.value)}
+                className="bg-[#262a35] font-mono text-xs text-primary px-3 py-1.5 rounded-lg focus:outline-none cursor-pointer border border-[#3d494c] font-semibold"
+              >
+                {Object.values(PRESET_SCENARIOS).map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name.split(':')[0]}: {preset.headline.slice(0, 35)}...
+                  </option>
+                ))}
+                {!PRESET_SCENARIOS[currentScenario.id] && (
+                  <option value={currentScenario.id}>
+                    [CUSTOM WHAT-IF]: {currentScenario.name.slice(0, 40)}...
+                  </option>
+                )}
               </select>
             </div>
 
-            {/* Mitigation Cutoff Switch */}
+            {/* Mitigation Sever Lines Switch */}
             <label className="flex items-center gap-2 cursor-pointer select-none bg-[#262a35]/80 px-3 py-1.5 rounded-lg hover:bg-[#262a35] transition-colors border border-[#3d494c]">
               <input
                 type="checkbox"
@@ -194,28 +239,28 @@ export const CitywideImpactChain: React.FC<CitywideImpactChainProps> = ({ onNavi
                 onChange={(e) => setShowSeverLines(e.target.checked)}
                 className="sr-only"
               />
-              <div className={`w-8 h-4 rounded-full relative transition-colors ${showSeverLines ? 'bg-primary-container' : 'bg-[#313540]'}`}>
+              <div className={`w-8 h-4 rounded-full relative transition-colors ${showSeverLines ? 'bg-primary' : 'bg-[#313540]'}`}>
                 <div
                   className={`w-3 h-3 bg-white rounded-full absolute top-0.5 transition-transform ${showSeverLines ? 'right-0.5' : 'left-0.5'}`}
                 ></div>
               </div>
-              <span className="font-label-caps text-label-caps uppercase text-primary ml-1 flex items-center gap-1">
+              <span className="text-xs font-mono text-primary font-bold ml-1 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px]">shield</span>
-                Show AI Mitigation Sever Lines
+                Show AI Sever Points
               </span>
             </label>
 
-            {/* Dynamic Department Legend Toggles */}
-            <div className="hidden lg:flex items-center gap-2 font-label-caps text-label-caps uppercase">
-              <span className="text-outline mr-1">Cross-Silos:</span>
+            {/* Cross-Silo Legend */}
+            <div className="hidden xl:flex items-center gap-2 text-xs font-mono">
+              <span className="text-outline mr-1">Portfolios:</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#262a35] text-primary border border-[#3d494c]">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary"></span> Energy (BESCOM)
+                <span className="w-1.5 h-1.5 rounded-full bg-primary"></span> Power (BESCOM)
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#262a35] text-error border border-[#3d494c]">
-                <span className="w-1.5 h-1.5 rounded-full bg-error"></span> Health (DHS)
+                <span className="w-1.5 h-1.5 rounded-full bg-error"></span> Health (108)
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#262a35] text-secondary border border-[#3d494c]">
-                <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span> Transit (BMRCL/BTP)
+                <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span> Transit (BTP)
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#262a35] text-tertiary border border-[#3d494c]">
                 <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span> Water (BWSSB)
@@ -223,632 +268,436 @@ export const CitywideImpactChain: React.FC<CitywideImpactChainProps> = ({ onNavi
             </div>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 ml-auto flex-wrap">
+            <button
+              onClick={() => onNavigateTab('what-if-simulation-lab')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#262a35] hover:bg-[#353944] text-white text-xs font-mono transition-all border border-[#3d494c]"
+              title="Test sliders or enter another prompt in What-If Lab"
+            >
+              <span className="material-symbols-outlined text-[16px] text-primary">science</span>
+              <span>Test in What-If Lab →</span>
+            </button>
             <button
               onClick={handleSimulateAlternative}
               disabled={isSimulatingAlternative}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#262a35] hover:bg-[#353944] text-on-surface font-data-mono-sm text-data-mono-sm transition-all shadow-sm border border-[#3d494c]"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#262a35] hover:bg-[#353944] text-white text-xs font-mono transition-all border border-[#3d494c]"
             >
               <span className={`material-symbols-outlined text-[16px] text-tertiary ${isSimulatingAlternative ? 'animate-spin' : ''}`}>
-                {isSimulatingAlternative ? 'refresh' : 'science'}
+                {isSimulatingAlternative ? 'refresh' : 'calculate'}
               </span>
-              {isSimulatingAlternative ? 'Re-computing Paths...' : 'Simulate Alternative Cutoffs'}
+              <span>{isSimulatingAlternative ? 'Re-routing...' : 'Simulate Cutoffs'}</span>
             </button>
             <button
               onClick={() => onNavigateTab('ai-response-planner')}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary-container hover:bg-primary text-on-primary font-data-mono-sm text-data-mono-sm font-semibold transition-all shadow-md"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary hover:brightness-110 text-on-primary text-xs font-mono font-bold transition-all shadow-md"
             >
               <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-              Deploy Response Plan
+              <span>Deploy Response Plan</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Primary Interactive Canvas & Inspector Split Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
-        {/* 8 Columns: Dynamic Interactive Causal Graph Visualization */}
+      {/* Primary Split Layout: 8-Cols Interactive Graph Canvas + 4-Cols Detailed Node Inspector */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+        {/* 8 COLUMNS: DYNAMIC 4-STAGE CAUSAL TOPOLOGY CANVAS */}
         <div className="xl:col-span-8 flex flex-col gap-3">
-          {/* Stage Progression Header */}
-          <div className="grid grid-cols-4 gap-2 text-center font-label-caps text-label-caps uppercase tracking-wider">
-            <div className="py-1.5 rounded-lg bg-[#1c1f2a] text-on-surface-variant flex items-center justify-center gap-1 border border-[#262a35]">
-              <span className="w-2 h-2 rounded-full bg-error"></span> Stage 01: Shock Nexus
+          {/* Stage Progression Breadcrumb Bar */}
+          <div className="grid grid-cols-4 gap-2 text-center font-mono text-xs uppercase tracking-wider font-semibold">
+            <div className="py-1.5 rounded-lg bg-[#1c1f2a] text-error flex items-center justify-center gap-1 border border-error/30">
+              <span className="w-2 h-2 rounded-full bg-error animate-pulse"></span> Stage 01: Shock Nexus
             </div>
-            <div className="py-1.5 rounded-lg bg-[#1c1f2a] text-on-surface-variant flex items-center justify-center gap-1 border border-[#262a35]">
-              <span className="w-2 h-2 rounded-full bg-primary"></span> Stage 02: Tier-1 Stress
+            <div className="py-1.5 rounded-lg bg-[#1c1f2a] text-primary flex items-center justify-center gap-1 border border-primary/30">
+              <span className="w-2 h-2 rounded-full bg-primary"></span> Stage 02: Sector Stress
             </div>
-            <div className="py-1.5 rounded-lg bg-[#1c1f2a] text-on-surface-variant flex items-center justify-center gap-1 border border-[#262a35]">
-              <span className="w-2 h-2 rounded-full bg-secondary"></span> Stage 03: Cross Multiplier
+            <div className="py-1.5 rounded-lg bg-[#1c1f2a] text-secondary flex items-center justify-center gap-1 border border-secondary/30">
+              <span className="w-2 h-2 rounded-full bg-secondary"></span> Stage 03: Multipliers
             </div>
-            <div className="py-1.5 rounded-lg bg-[#262a35] text-error font-bold flex items-center justify-center gap-1 shadow-sm border border-error/40">
-              <span className="material-symbols-outlined text-[14px] text-error">warning</span> Stage 04: Bottlenecks
+            <div className="py-1.5 rounded-lg bg-[#262a35] text-amber-400 flex items-center justify-center gap-1 shadow-sm border border-amber-500/40">
+              <span className="material-symbols-outlined text-[14px]">warning</span> Stage 04: Bottleneck
             </div>
           </div>
 
           {/* Interactive Causal Visual Canvas Container */}
-          <div className="relative w-full min-h-[700px] bg-[#0a0e18] rounded-xl p-4 overflow-hidden shadow-2xl border border-[#262a35]">
+          <div className="relative w-full min-h-[720px] bg-[#0a0e18] rounded-2xl p-4 overflow-hidden shadow-2xl border border-[#262a35]">
             <div className="absolute inset-0 bg-[radial-gradient(#1c1f2a_1px,transparent_1px)] [background-size:24px_24px] opacity-60 pointer-events-none"></div>
 
-            {/* SVG Luminescent Dependency Connectors */}
+            {/* SVG Dynamic Connectors */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" xmlns="http://www.w3.org/2000/svg">
               <defs>
-                <linearGradient id="streamEnergy" x1="0%" x2="100%" y1="0%" y2="0%">
+                <linearGradient id="streamPrimary" x1="0%" x2="100%" y1="0%" y2="0%">
                   <stop offset="0%" stopColor="#ffb4ab" stopOpacity="0.8"></stop>
                   <stop offset="50%" stopColor="#4cd7f6" stopOpacity="0.9"></stop>
                   <stop offset="100%" stopColor="#4cd7f6" stopOpacity="0.6"></stop>
                 </linearGradient>
-                <linearGradient id="streamTransit" x1="0%" x2="100%" y1="0%" y2="0%">
+                <linearGradient id="streamSecondary" x1="0%" x2="100%" y1="0%" y2="0%">
                   <stop offset="0%" stopColor="#ffb4ab" stopOpacity="0.8"></stop>
                   <stop offset="100%" stopColor="#d0bcff" stopOpacity="0.8"></stop>
                 </linearGradient>
-                <linearGradient id="streamHealth" x1="0%" x2="100%" y1="0%" y2="0%">
-                  <stop offset="0%" stopColor="#ffb4ab" stopOpacity="0.9"></stop>
-                  <stop offset="100%" stopColor="#ffb4ab" stopOpacity="0.9"></stop>
-                </linearGradient>
-                <linearGradient id="streamCrossCritical" x1="0%" x2="100%" y1="0%" y2="0%">
-                  <stop offset="0%" stopColor="#4cd7f6" stopOpacity="0.8"></stop>
-                  <stop offset="100%" stopColor="#ffb4ab" stopOpacity="1"></stop>
+                <linearGradient id="streamSever" x1="0%" x2="100%" y1="0%" y2="0%">
+                  <stop offset="0%" stopColor="#4edea3" stopOpacity="0.9"></stop>
+                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.9"></stop>
                 </linearGradient>
               </defs>
 
-              {/* Branch 1: Nexus -> Substation 04 */}
-              <path d="M 180 340 C 240 340, 260 170, 310 170" fill="none" stroke="url(#streamEnergy)" strokeDasharray="6,4" strokeWidth="2.5"></path>
-              {/* Branch 2: Nexus -> Bitumen Road Melt */}
-              <path d="M 180 340 C 240 340, 260 340, 310 340" fill="none" stroke="url(#streamTransit)" strokeWidth="2"></path>
-              {/* Branch 3: Nexus -> Heat Stroke Outbreak */}
-              <path d="M 180 340 C 240 340, 260 510, 310 510" fill="none" stroke="url(#streamHealth)" strokeDasharray="4,4" strokeWidth="2.5"></path>
-              {/* Branch 4: Substation 04 -> ICU Emergency Backup */}
-              <path d="M 480 170 C 530 170, 545 130, 580 130" fill="none" stroke="url(#streamCrossCritical)" strokeWidth="3"></path>
-              {/* Branch 5: Substation 04 -> Traffic Signals Outage */}
-              <path d="M 480 170 C 530 170, 545 280, 580 280" fill="none" stroke="#4cd7f6" strokeOpacity="0.8" strokeWidth="2"></path>
-              {/* Branch 6: Transit Melt -> Ambulance Arterial Delay */}
-              <path d="M 480 340 C 530 340, 545 300, 580 300" fill="none" stroke="#d0bcff" strokeWidth="2.5"></path>
-              {/* Branch 7: Heatstroke -> Cooling Shelter Overload */}
-              <path d="M 480 510 C 530 510, 545 470, 580 470" fill="none" stroke="#4edea3" strokeWidth="2"></path>
-              <path d="M 480 510 C 530 510, 545 560, 580 560" fill="none" stroke="#ffb4ab" strokeWidth="2"></path>
+              {/* Stage 1 to Stage 2 Branches */}
+              <path d="M 180 360 C 240 360, 250 160, 310 160" fill="none" stroke="url(#streamPrimary)" strokeDasharray={severADeployed ? "4,4" : "none"} strokeWidth="2.5" opacity={severADeployed ? "0.3" : "0.9"}></path>
+              <path d="M 180 360 C 240 360, 250 360, 310 360" fill="none" stroke="url(#streamSecondary)" strokeWidth="2.5"></path>
+              <path d="M 180 360 C 240 360, 250 560, 310 560" fill="none" stroke="#ffb4ab" strokeDasharray={severBDeployed ? "4,4" : "none"} strokeWidth="2.5" opacity={severBDeployed ? "0.3" : "0.9"}></path>
 
-              {/* Convergence into Critical Bottleneck (Stage 4) */}
-              <path d="M 750 130 C 800 130, 810 310, 850 310" fill="none" stroke="#ffb4ab" strokeDasharray="5,3" strokeWidth="3"></path>
-              <path d="M 750 290 C 800 290, 810 320, 850 320" fill="none" stroke="#ffb4ab" strokeWidth="3"></path>
-              <path d="M 750 470 C 800 470, 820 370, 850 350" fill="none" stroke="#4edea3" strokeWidth="2"></path>
+              {/* Stage 2 to Stage 3 Branches */}
+              <path d="M 480 160 C 530 160, 545 130, 580 130" fill="none" stroke="#4cd7f6" strokeWidth="2.5" opacity={severADeployed ? "0.2" : "0.85"}></path>
+              <path d="M 480 360 C 530 360, 545 340, 580 340" fill="none" stroke="#d0bcff" strokeWidth="2.5"></path>
+              <path d="M 480 560 C 530 560, 545 540, 580 540" fill="none" stroke="#ffb4ab" strokeWidth="2.5" opacity={severBDeployed ? "0.2" : "0.85"}></path>
 
-              {/* Visual Shield Cutoff Lines */}
+              {/* Stage 3 to Stage 4 Bottleneck Convergence */}
+              <path d="M 750 130 C 800 130, 810 330, 850 350" fill="none" stroke="#ffb4ab" strokeDasharray="5,3" strokeWidth="3" opacity={severADeployed ? "0.2" : "0.9"}></path>
+              <path d="M 750 340 C 800 340, 810 360, 850 360" fill="none" stroke="#ffb4ab" strokeWidth="3"></path>
+              <path d="M 750 540 C 800 540, 810 390, 850 370" fill="none" stroke="#ffb4ab" strokeDasharray="5,3" strokeWidth="3" opacity={severBDeployed ? "0.2" : "0.9"}></path>
+
+              {/* Visual Sever Circuit Interrupters */}
               {showSeverLines && (
                 <g className="transition-opacity duration-300 opacity-100">
-                  <line stroke="#4cd7f6" strokeDasharray="3,3" strokeWidth="2.5" x1="530" x2="530" y1="90" y2="230"></line>
-                  <circle cx="530" cy="160" fill="#06b6d4" fillOpacity="0.25" r="14" stroke="#4cd7f6" strokeWidth="1.5"></circle>
-                  <text fill="#4cd7f6" fontFamily="JetBrains Mono" fontSize="8" fontWeight="bold" textAnchor="middle" x="530" y="163">
-                    SEVER A
+                  {/* Sever Point A */}
+                  <line stroke={severADeployed ? "#4edea3" : "#4cd7f6"} strokeDasharray="3,3" strokeWidth="2.5" x1="530" x2="530" y1="80" y2="240"></line>
+                  <circle cx="530" cy="160" fill={severADeployed ? "#059669" : "#0891b2"} fillOpacity="0.4" r="15" stroke={severADeployed ? "#4edea3" : "#4cd7f6"} strokeWidth="2"></circle>
+                  <text fill={severADeployed ? "#4edea3" : "#4cd7f6"} fontFamily="JetBrains Mono" fontSize="8" fontWeight="bold" textAnchor="middle" x="530" y="163">
+                    {severADeployed ? "SEVERED" : "SEVER A"}
                   </text>
 
-                  <line stroke="#4edea3" strokeDasharray="3,3" strokeWidth="2.5" x1="535" x2="535" y1="260" y2="390"></line>
-                  <circle cx="535" cy="325" fill="#1bbd85" fillOpacity="0.25" r="14" stroke="#4edea3" strokeWidth="1.5"></circle>
-                  <text fill="#4edea3" fontFamily="JetBrains Mono" fontSize="8" fontWeight="bold" textAnchor="middle" x="535" y="328">
-                    SEVER B
+                  {/* Sever Point B */}
+                  <line stroke={severBDeployed ? "#4edea3" : "#f59e0b"} strokeDasharray="3,3" strokeWidth="2.5" x1="535" x2="535" y1="480" y2="640"></line>
+                  <circle cx="535" cy="560" fill={severBDeployed ? "#059669" : "#d97706"} fillOpacity="0.4" r="15" stroke={severBDeployed ? "#4edea3" : "#f59e0b"} strokeWidth="2"></circle>
+                  <text fill={severBDeployed ? "#4edea3" : "#f59e0b"} fontFamily="JetBrains Mono" fontSize="8" fontWeight="bold" textAnchor="middle" x="535" y="563">
+                    {severBDeployed ? "SEVERED" : "SEVER B"}
                   </text>
                 </g>
               )}
             </svg>
 
             {/* Column Grid Structure for HTML Nodes */}
-            <div className="relative z-10 grid grid-cols-4 gap-3 h-full py-2 min-h-[640px]">
-              {/* STAGE 1 */}
+            <div className="relative z-10 grid grid-cols-4 gap-3 h-full py-2 min-h-[660px]">
+              {/* STAGE 1: SHOCK NEXUS */}
               <div className="flex flex-col justify-center items-center">
-                <div
-                  onClick={() => setSelectedNodeId('node-nexus')}
-                  className={`w-full max-w-[210px] bg-[#1c1f2a] p-3 rounded-xl cursor-pointer hover:scale-105 transition-all shadow-lg border relative ${
-                    selectedNodeId === 'node-nexus' ? 'border-primary ring-2 ring-primary' : 'border-error/40'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-label-caps text-label-caps text-error bg-error/10 px-2 py-0.5 rounded">
-                      ENV TRIGGER
-                    </span>
-                    <span className="font-data-mono-sm text-data-mono-sm text-on-surface-variant">T0</span>
+                {stage1Node && (
+                  <div
+                    onClick={() => setSelectedNodeId(stage1Node.id)}
+                    className={`w-full max-w-[210px] bg-[#1c1f2a] p-3 rounded-xl cursor-pointer hover:scale-105 transition-all shadow-lg border relative ${
+                      selectedNodeId === stage1Node.id ? 'border-primary ring-2 ring-primary' : 'border-error/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-mono font-bold text-error bg-error/10 px-2 py-0.5 rounded uppercase">
+                        GROUND ZERO
+                      </span>
+                      <span className="text-[10px] font-mono text-on-surface-variant">T0 SHOCK</span>
+                    </div>
+                    <h4 className="text-xs sm:text-sm text-white font-bold leading-tight">
+                      {stage1Node.title}
+                    </h4>
+                    <p className="text-[11px] text-on-surface-variant mt-1 line-clamp-2">
+                      {stage1Node.desc}
+                    </p>
+                    <div className="mt-2.5 pt-2 bg-[#0a0e18] px-2 py-1.5 rounded flex items-center justify-between border border-[#262a35]">
+                      <span className="text-[10px] font-mono text-outline">{stage1Node.metricLabel}</span>
+                      <span className="text-xs font-mono text-error font-bold">{stage1Node.metric}</span>
+                    </div>
+                    <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-error ring-4 ring-[#1c1f2a] animate-pulse"></div>
                   </div>
-                  <h4 className="font-headline-sm text-body-lg text-on-surface font-bold leading-tight">
-                    Extreme Heat Index 42.4°C
-                  </h4>
-                  <p className="font-body-sm text-[11px] text-on-surface-variant mt-1">
-                    Solar Radiation Index 9.4 + Asphalt Albedo in Bengaluru
-                  </p>
-                  <div className="mt-3 pt-2 bg-[#0a0e18] px-2 py-1.5 rounded flex items-center justify-between border border-[#262a35]">
-                    <span className="font-data-mono-sm text-[10px] text-outline">Stress Potential</span>
-                    <span className="font-data-mono-sm text-data-mono-sm text-error font-bold">CRITICAL 9.9</span>
-                  </div>
-                  <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-error ring-4 ring-[#1c1f2a] animate-pulse"></div>
-                </div>
+                )}
               </div>
 
-              {/* STAGE 2 */}
+              {/* STAGE 2: TIER-1 DIRECT SECTOR STRESS */}
               <div className="flex flex-col justify-around gap-y-4">
-                {/* Node: Substation 04 */}
-                <div
-                  onClick={() => setSelectedNodeId('node-substation-04')}
-                  className={`w-full bg-[#1c1f2a] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-lg border relative ${
-                    selectedNodeId === 'node-substation-04' ? 'border-primary ring-2 ring-primary' : 'border-primary/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-label-caps text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                      BESCOM POWER
-                    </span>
-                    <span className="font-data-mono-sm text-[10px] text-error font-bold">104°C CORE</span>
+                {stage2Nodes.map((node) => (
+                  <div
+                    key={node.id}
+                    onClick={() => setSelectedNodeId(node.id)}
+                    className={`w-full bg-[#1c1f2a] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-md border relative ${
+                      selectedNodeId === node.id ? 'border-primary ring-2 ring-primary' : 'border-[#262a35]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${node.badgeBg} ${node.colorClass}`}>
+                        {node.sector.split(' /')[0]}
+                      </span>
+                      <span className="text-[10px] font-mono text-on-surface-variant font-bold">STAGE 02</span>
+                    </div>
+                    <h4 className="text-xs text-white font-semibold mt-1 leading-snug">
+                      {node.title}
+                    </h4>
+                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-[#262a35] text-[10px] font-mono">
+                      <span className="text-outline">{node.metricLabel}</span>
+                      <span className={`${node.colorClass} font-bold`}>{node.metric}</span>
+                    </div>
+                    <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${node.colorClass.includes('error') ? 'bg-error' : node.colorClass.includes('secondary') ? 'bg-secondary' : 'bg-primary'} ring-2 ring-[#0a0e18]`}></div>
                   </div>
-                  <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold mt-1">
-                    HAL Substation 04 Overload
-                  </h4>
-                  <div className="w-full bg-[#313540] h-1 rounded mt-2 overflow-hidden">
-                    <div className="bg-primary h-full w-[94%]"></div>
-                  </div>
-                  <div className="flex justify-between items-center mt-1.5 font-data-mono-sm text-[10px]">
-                    <span className="text-outline">Grid Load</span>
-                    <span className="text-primary font-bold">94% (Surge)</span>
-                  </div>
-                  <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-[#0a0e18]"></div>
-                </div>
-
-                {/* Node: Bitumen Road */}
-                <div
-                  onClick={() => setSelectedNodeId('node-road-bitumen')}
-                  className={`w-full bg-[#1c1f2a] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-md border relative ${
-                    selectedNodeId === 'node-road-bitumen' ? 'border-secondary ring-2 ring-secondary' : 'border-[#262a35]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-label-caps text-secondary bg-secondary/10 px-1.5 py-0.5 rounded">
-                      BTP TRANSIT
-                    </span>
-                    <span className="font-data-mono-sm text-[10px] text-secondary">SURFACE 58°C</span>
-                  </div>
-                  <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold mt-1">
-                    Bitumen Softening (ORR)
-                  </h4>
-                  <p className="font-body-sm text-[11px] text-on-surface-variant mt-1 leading-snug">
-                    Speed limits reduced -40% along Silk Board - Marathahalli.
-                  </p>
-                  <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-secondary ring-2 ring-[#0a0e18]"></div>
-                </div>
-
-                {/* Node: Heatstroke Surge */}
-                <div
-                  onClick={() => setSelectedNodeId('node-heatstroke-surge')}
-                  className={`w-full bg-[#1c1f2a] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-md border relative ${
-                    selectedNodeId === 'node-heatstroke-surge' ? 'border-error ring-2 ring-error' : 'border-[#262a35]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-label-caps text-error bg-error/10 px-1.5 py-0.5 rounded">
-                      PUBLIC HEALTH
-                    </span>
-                    <span className="font-data-mono-sm text-[10px] text-error font-bold">+310 CALLS/HR</span>
-                  </div>
-                  <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold mt-1">
-                    Severe Dehydration Spike
-                  </h4>
-                  <p className="font-body-sm text-[11px] text-on-surface-variant mt-1 leading-snug">
-                    Elderly clusters in Shivajinagar &amp; Zone 4 at critical risk.
-                  </p>
-                  <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-error ring-2 ring-[#0a0e18]"></div>
-                </div>
+                ))}
               </div>
 
-              {/* STAGE 3 */}
+              {/* STAGE 3: CROSS-MULTIPLIERS & SYSTEMIC SPILLOVER */}
               <div className="flex flex-col justify-around gap-y-3">
-                {/* Node: Hospital Gen-set */}
-                <div
-                  onClick={() => setSelectedNodeId('node-icu-generator')}
-                  className={`w-full bg-[#262a35] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-md border relative ${
-                    selectedNodeId === 'node-icu-generator' ? 'border-primary ring-2 ring-primary' : 'border-[#3d494c]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-label-caps text-error bg-error/15 px-1.5 py-0.5 rounded">
-                      HEALTH + ENERGY
-                    </span>
-                    <span className="font-data-mono-sm text-[10px] text-error">DIESEL TANK 82%</span>
+                {stage3Nodes.map((node) => (
+                  <div
+                    key={node.id}
+                    onClick={() => setSelectedNodeId(node.id)}
+                    className={`w-full bg-[#1c1f2a] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-md border relative ${
+                      selectedNodeId === node.id ? 'border-primary ring-2 ring-primary' : 'border-[#262a35]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${node.badgeBg} ${node.colorClass}`}>
+                        {node.sector.split(' /')[0]}
+                      </span>
+                      <span className="text-[10px] font-mono text-on-surface-variant font-bold">STAGE 03</span>
+                    </div>
+                    <h4 className="text-xs text-white font-semibold mt-1 leading-snug">
+                      {node.title}
+                    </h4>
+                    <p className="text-[10px] text-on-surface-variant mt-1 line-clamp-2">
+                      {node.desc}
+                    </p>
+                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-[#262a35] text-[10px] font-mono">
+                      <span className="text-outline">{node.metricLabel}</span>
+                      <span className={`${node.colorClass} font-bold`}>{node.metric}</span>
+                    </div>
+                    <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-secondary ring-2 ring-[#0a0e18]"></div>
                   </div>
-                  <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold mt-1">
-                    St. John's ICU Gen-Set
-                  </h4>
-                  <p className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
-                    Isolated from grid due to voltage drop at HAL Substation 4.
-                  </p>
-                  <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-error ring-2 ring-[#0a0e18]"></div>
-                </div>
-
-                {/* Node: Signals Offline */}
-                <div
-                  onClick={() => setSelectedNodeId('node-signals-dark')}
-                  className={`w-full bg-[#262a35] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-md border relative ${
-                    selectedNodeId === 'node-signals-dark' ? 'border-secondary ring-2 ring-secondary' : 'border-[#3d494c]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-label-caps text-secondary bg-secondary/15 px-1.5 py-0.5 rounded">
-                      BTP TRAFFIC OPS
-                    </span>
-                    <span className="font-data-mono-sm text-[10px] text-secondary">14 JUNCTIONS</span>
-                  </div>
-                  <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold mt-1">
-                    Corridor Signals Offline
-                  </h4>
-                  <p className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
-                    Ambulance runtimes bloated +18.4 mins on Old Airport Rd.
-                  </p>
-                  <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-secondary ring-2 ring-[#0a0e18]"></div>
-                </div>
-
-                {/* Node: Water Pressure Drop */}
-                <div
-                  onClick={() => setSelectedNodeId('node-water-pressure')}
-                  className={`w-full bg-[#262a35] p-2.5 rounded-xl cursor-pointer hover:scale-[1.03] transition-all shadow-md border relative ${
-                    selectedNodeId === 'node-water-pressure' ? 'border-tertiary ring-2 ring-tertiary' : 'border-[#3d494c]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-label-caps text-tertiary bg-tertiary/15 px-1.5 py-0.5 rounded">
-                      BWSSB WATER
-                    </span>
-                    <span className="font-data-mono-sm text-[10px] text-tertiary">38 PSI LOW</span>
-                  </div>
-                  <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold mt-1">
-                    Zone 4 Main Pressure Drop
-                  </h4>
-                  <p className="font-body-sm text-[11px] text-on-surface-variant mt-0.5">
-                    High HVAC chiller draw drops municipal head pressure.
-                  </p>
-                  <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-tertiary ring-2 ring-[#0a0e18]"></div>
-                </div>
+                ))}
               </div>
 
-              {/* STAGE 4 */}
+              {/* STAGE 4: CRITICAL CROSS-SILO SYSTEMIC BOTTLENECK */}
               <div className="flex flex-col justify-center items-center">
-                <div
-                  onClick={() => setSelectedNodeId('node-bottleneck-alpha')}
-                  className={`w-full max-w-[220px] bg-[#313540] p-3 rounded-xl cursor-pointer hover:scale-105 transition-all shadow-2xl border-2 relative overflow-hidden group ${
-                    selectedNodeId === 'node-bottleneck-alpha' ? 'border-error ring-2 ring-error' : 'border-error'
-                  }`}
-                >
-                  <div className="absolute inset-0 bg-error/5 group-hover:bg-error/10 transition-colors pointer-events-none"></div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-label-caps text-label-caps text-surface-container-lowest bg-error font-bold px-2 py-0.5 rounded uppercase">
-                      CRITICAL BOTTLENECK
-                    </span>
-                    <span className="material-symbols-outlined text-error text-[18px]">emergency</span>
-                  </div>
-                  <h4 className="font-headline-sm text-headline-sm text-error font-bold leading-tight">
-                    Emergency Corridor Paralysis
-                  </h4>
-                  <p className="font-body-sm text-[12px] text-on-surface font-medium mt-2 leading-relaxed">
-                    Dual failure of HAL Substation 04 + Route 9 signals traps 8 frontline ambulances simultaneously.
-                  </p>
-                  <div className="mt-3 pt-2 bg-[#0a0e18]/90 rounded-lg p-2 flex flex-col gap-1 border border-[#262a35]">
-                    <div className="flex items-center justify-between font-data-mono-sm text-[10px]">
-                      <span className="text-outline">Patient Impact:</span>
-                      <span className="text-error font-bold">+38% Mortality Delta</span>
+                {stage4Node && (
+                  <div
+                    onClick={() => setSelectedNodeId(stage4Node.id)}
+                    className={`w-full max-w-[220px] bg-[#262a35] p-3 rounded-xl cursor-pointer hover:scale-105 transition-all shadow-2xl border relative ${
+                      selectedNodeId === stage4Node.id
+                        ? 'border-error ring-2 ring-error'
+                        : 'border-error/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-mono font-bold text-error bg-error/20 px-2 py-0.5 rounded uppercase flex items-center gap-1 border border-error/30">
+                        <span className="material-symbols-outlined text-[12px]">warning</span>
+                        BOTTLENECK
+                      </span>
+                      <span className="text-[10px] font-mono text-error font-bold">STAGE 04</span>
                     </div>
-                    <div className="flex items-center justify-between font-data-mono-sm text-[10px]">
-                      <span className="text-outline">Cascading Cost:</span>
-                      <span className="text-primary font-bold">₹1.52 Cr / Hour</span>
+                    <h4 className="text-xs sm:text-sm text-white font-bold leading-tight">
+                      {stage4Node.title}
+                    </h4>
+                    <p className="text-[11px] text-on-surface-variant mt-1">
+                      {stage4Node.desc}
+                    </p>
+                    <div className="mt-2.5 pt-2 bg-[#0a0e18] px-2 py-1.5 rounded flex items-center justify-between border border-[#3d494c]">
+                      <span className="text-[10px] font-mono text-outline">Cascade Potential</span>
+                      <span className="text-xs font-mono text-error font-bold">VULN {stage4Node.vuln} / 10</span>
                     </div>
+                    {/* Active Sever Indicator Badge */}
+                    {(severADeployed || severBDeployed) && (
+                      <div className="mt-2 p-1.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono text-emerald-400 font-bold text-center flex items-center justify-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">shield</span>
+                        <span>CASCADE SEVERED ({severADeployed && severBDeployed ? '94%' : '65%'} ARRESTED)</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-3 flex items-center justify-center gap-1 py-1 rounded bg-error text-surface-container-lowest font-data-mono-sm text-data-mono-sm font-bold">
-                    <span className="material-symbols-outlined text-[14px]">lock_reset</span>
-                    PRIORITY MITIGATION #1
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Real-Time Cascade Propagation Forecast Timeline Chart */}
-          <div className="w-full bg-[#171b26] rounded-xl p-3 shadow-lg border border-[#262a35]">
-            <div className="flex items-center justify-between mb-2">
+          {/* Actionable Circuit Breaker Sever Controls */}
+          <div className="bg-[#171b26] border border-[#262a35] rounded-xl p-4 shadow-md">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#262a35]">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">show_chart</span>
-                <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
-                  Cascade Propagation Forecast (T+00 to T+06 Hours IST)
+                <span className="material-symbols-outlined text-primary text-[20px]">healing</span>
+                <h3 className="text-sm font-bold text-white">
+                  Active Circuit Breakers (AI Cascade Sever Interventions)
                 </h3>
               </div>
-              <span className="font-data-mono-sm text-data-mono-sm text-outline">STRESS MULTIPLIER DERIVATIVE</span>
+              <span className="text-xs font-mono text-outline">
+                Click to sever causal chain and arrest municipal ripple effects
+              </span>
             </div>
 
-            <div className="w-full h-32 relative">
-              <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 800 120">
-                <line stroke="#313540" strokeDasharray="2,2" strokeWidth="0.5" x1="0" x2="800" y1="20" y2="20"></line>
-                <line stroke="#313540" strokeDasharray="2,2" strokeWidth="0.5" x1="0" x2="800" y1="60" y2="60"></line>
-                <line stroke="#313540" strokeDasharray="2,2" strokeWidth="0.5" x1="0" x2="800" y1="100" y2="100"></line>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {chainData.severInterventions.map((intervention, idx) => {
+                const isDeployed = idx === 0 ? severADeployed : severBDeployed;
+                const toggleFn = idx === 0 ? handleToggleSeverA : handleToggleSeverB;
+                return (
+                  <div
+                    key={intervention.id}
+                    className={`p-3 rounded-xl border transition-all ${
+                      isDeployed
+                        ? 'bg-emerald-950/20 border-emerald-500/40'
+                        : 'bg-[#1c1f2a] border-[#262a35]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-mono font-bold ${isDeployed ? 'bg-emerald-500 text-black' : 'bg-primary/20 text-primary'}`}>
+                          {idx === 0 ? 'A' : 'B'}
+                        </span>
+                        <span className="text-xs font-bold text-white">{intervention.name}</span>
+                      </div>
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${isDeployed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-[#262a35] text-outline'}`}>
+                        {isDeployed ? 'ACTIVE SEVER' : 'STANDBY'}
+                      </span>
+                    </div>
 
-                {/* Unmitigated Disaster Curve */}
-                <path d="M 0 100 Q 200 95, 350 70 T 550 30 T 800 5 L 800 120 L 0 120 Z" fill="#ffb4ab" fillOpacity="0.08"></path>
-                <path d="M 0 100 Q 200 95, 350 70 T 550 30 T 800 5" fill="none" stroke="#ffb4ab" strokeWidth="2.5"></path>
+                    <p className="text-xs text-on-surface-variant mb-2 leading-relaxed">
+                      {intervention.action}
+                    </p>
 
-                {/* AI Mitigated Trajectory */}
-                <path d="M 0 100 Q 200 95, 350 70 T 500 78 T 800 85 L 800 120 L 0 120 Z" fill="#4cd7f6" fillOpacity="0.08"></path>
-                <path d="M 0 100 Q 200 95, 350 70 T 500 78 T 800 85" fill="none" stroke="#4cd7f6" strokeDasharray="4,2" strokeWidth="2.5"></path>
+                    <div className="bg-[#0a0e18] p-2 rounded-lg text-[11px] font-mono border border-[#262a35] mb-2.5">
+                      <span className="text-emerald-400 block font-semibold">Prevents: {intervention.consequencePrevented}</span>
+                      <span className="text-outline text-[10px] mt-0.5 block">Efficiency: {intervention.efficiency}</span>
+                    </div>
 
-                <circle cx="350" cy="70" fill="#ffb4ab" r="4"></circle>
-                <text fill="#ffb4ab" fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="350" y="60">
-                  T+02h [HAL Sub-4 Trip Risk]
-                </text>
-                <circle cx="500" cy="78" fill="#4cd7f6" r="4"></circle>
-                <text fill="#4cd7f6" fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="500" y="98">
-                  T+03.5h [Mitigation Plateau]
-                </text>
-              </svg>
-            </div>
-            <div className="flex items-center justify-between text-outline font-data-mono-sm text-data-mono-sm mt-2 px-1">
-              <span>T+00h (Now: 14:00 IST)</span>
-              <span>T+01h</span>
-              <span>T+02h (Projected Peak Temp)</span>
-              <span>T+03h</span>
-              <span>T+04h (Shift Handover)</span>
-              <span>T+05h</span>
-              <span>T+06h (Sunset Drop)</span>
+                    <button
+                      onClick={toggleFn}
+                      className={`w-full py-1.5 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        isDeployed
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                          : 'bg-primary hover:brightness-110 text-on-primary'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {isDeployed ? 'check_circle' : 'bolt'}
+                      </span>
+                      <span>{isDeployed ? 'CIRCUIT SEVERED (ARRESTED)' : 'DEPLOY CIRCUIT BREAKER'}</span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* 4 Columns: Node Inspector & Inter-Department Cross-Talk Drawer */}
+        {/* 4 COLUMNS: DETAILED CAUSAL NODE INSPECTOR */}
         <div className="xl:col-span-4 flex flex-col gap-3">
-          {/* Primary Node Telemetry Card */}
-          <div className="w-full bg-[#171b26] rounded-xl p-4 shadow-xl border border-[#262a35] relative overflow-hidden transition-all">
-            <div className="flex items-center justify-between mb-2 pb-2 bg-[#1c1f2a] px-3 py-2 rounded-lg border border-[#262a35]">
+          <div className="bg-[#171b26] border border-[#262a35] rounded-2xl p-4 shadow-xl">
+            {/* Inspector Header */}
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#262a35]">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
-                <span className="font-label-caps text-label-caps uppercase text-primary font-bold">
-                  NODE TELEMETRY INSPECTOR
+                <span className="material-symbols-outlined text-primary text-[20px]">troubleshoot</span>
+                <span className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                  Node Inspector
                 </span>
               </div>
-              <span className="font-data-mono-sm text-data-mono-sm text-outline">{activeNode.id}</span>
+              <span className="text-xs font-mono text-outline px-2 py-0.5 rounded bg-[#1c1f2a] border border-[#262a35]">
+                {activeNode.id}
+              </span>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <h2 className="font-headline-lg text-headline-lg text-on-surface font-bold tracking-tight">
+            {/* Active Node Identity */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${activeNode.badgeBg} ${activeNode.colorClass}`}>
+                  {activeNode.sector}
+                </span>
+                <span className="text-[10px] font-mono text-outline">
+                  {activeNode.stageLabel}
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-white mt-1">
                 {activeNode.title}
               </h2>
-              <span className="inline-block px-2 py-0.5 rounded bg-primary/10 text-primary font-data-mono-sm text-data-mono-sm self-start border border-primary/30">
-                {activeNode.category}
+              <div className="flex items-center gap-1 text-xs text-on-surface-variant font-mono mt-1">
+                <span className="material-symbols-outlined text-[14px] text-primary">location_on</span>
+                <span>{activeNode.location}</span>
+              </div>
+            </div>
+
+            {/* Plain English Impact Analysis */}
+            <div className="bg-[#1c1f2a] p-3 rounded-xl border border-[#262a35] mb-3">
+              <span className="text-[10px] uppercase font-mono text-outline block mb-1 font-bold">
+                Causal Mechanism (What is happening):
               </span>
-            </div>
-
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2 leading-relaxed">
-              {activeNode.desc}
-            </p>
-
-            {/* Detailed Vulnerability & Impact Ratios */}
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              <div className="p-2.5 bg-[#1c1f2a] rounded-lg border border-[#262a35]">
-                <span className="font-label-caps text-label-caps uppercase text-outline">
-                  Cascade Vulnerability
-                </span>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="font-headline-sm text-headline-sm text-error font-bold">
-                    {activeNode.vuln}
-                  </span>
-                  <span className="font-data-mono-sm text-data-mono-sm text-outline">/ 10</span>
-                </div>
-                <div className="w-full bg-[#313540] h-1 rounded mt-1.5 overflow-hidden">
-                  <div className="bg-error h-full" style={{ width: `${parseFloat(activeNode.vuln) * 10}%` }}></div>
-                </div>
-              </div>
-
-              <div className="p-2.5 bg-[#1c1f2a] rounded-lg border border-[#262a35]">
-                <span className="font-label-caps text-label-caps uppercase text-outline">
-                  Direct Ripple Count
-                </span>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="font-headline-sm text-headline-sm text-primary font-bold">
-                    {activeNode.ripple}
-                  </span>
-                  <span className="font-data-mono-sm text-data-mono-sm text-outline">Tiers 2-4</span>
-                </div>
-                <div className="w-full bg-[#313540] h-1 rounded mt-1.5 overflow-hidden">
-                  <div className="bg-primary h-full w-[70%]"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Cross-Department Impact Matrix */}
-            <div className="mt-3">
-              <span className="font-label-caps text-label-caps uppercase text-outline block mb-1.5">
-                Secondary Silo Ripple Impact
-              </span>
-              <div className="space-y-1.5">
-                <div className="p-2 rounded-lg bg-[#1c1f2a] flex items-center justify-between border border-[#262a35]">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-error">local_hospital</span>
-                    <div>
-                      <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold leading-tight">
-                        Public Health Services
-                      </h4>
-                      <p className="font-body-sm text-[11px] text-on-surface-variant">
-                        St. John's &amp; Bowring switch to internal backup gen-sets
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-data-mono-sm text-data-mono-sm text-error font-bold">+28% RISK</span>
-                </div>
-
-                <div className="p-2 rounded-lg bg-[#1c1f2a] flex items-center justify-between border border-[#262a35]">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-secondary">traffic</span>
-                    <div>
-                      <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold leading-tight">
-                        Transit &amp; Signal Authority (BTP)
-                      </h4>
-                      <p className="font-body-sm text-[11px] text-on-surface-variant">
-                        Route 9 &amp; Silk Board signals drop to fail-safe flashing yellows
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-data-mono-sm text-data-mono-sm text-secondary font-bold">14 INTXNS</span>
-                </div>
-
-                <div className="p-2 rounded-lg bg-[#1c1f2a] flex items-center justify-between border border-[#262a35]">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-tertiary">water_drop</span>
-                    <div>
-                      <h4 className="font-headline-sm text-body-sm text-on-surface font-semibold leading-tight">
-                        Municipal Water Works (BWSSB)
-                      </h4>
-                      <p className="font-body-sm text-[11px] text-on-surface-variant">
-                        Pumping Station 12 auxiliary motor auto-shedding
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-data-mono-sm text-data-mono-sm text-tertiary font-bold">-15 PSI</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Department Cross-Talk Log */}
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="font-label-caps text-label-caps uppercase text-outline">
-                  Autonomous Dispatch Comms
-                </span>
-                <span className="font-data-mono-sm text-[10px] text-tertiary">ENCRYPTED BENGALURU SYNC</span>
-              </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                <div className="p-2 rounded bg-[#1c1f2a] text-[11px] font-body-sm leading-relaxed text-on-surface-variant border border-[#262a35]">
-                  <span className="font-data-mono-sm text-primary font-bold">[14:18:02 BESCOM_AI]:</span>
-                  {' '}Load transfer request triggered: Shunting 18MW to North Hydro Reserve to cool HAL Substation 4.
-                </div>
-                <div className="p-2 rounded bg-[#1c1f2a] text-[11px] font-body-sm leading-relaxed text-on-surface-variant border border-[#262a35]">
-                  <span className="font-data-mono-sm text-secondary font-bold">[14:19:44 BTP_BOT]:</span>
-                  {' '}Outer Ring Road ambulance priority override active. Signal cycle synchronized to 120s green wave.
-                </div>
-                <div className="p-2 rounded bg-[#1c1f2a] text-[11px] font-body-sm leading-relaxed text-on-surface-variant border border-[#262a35]">
-                  <span className="font-data-mono-sm text-error font-bold">[14:21:10 HEALTH_DESK]:</span>
-                  {' '}St. John's received automated power stability alert. Chilled water storage reserves holding at 94%.
-                </div>
-              </div>
-            </div>
-
-            {/* Recommended Mitigation Action */}
-            <div className="mt-3 p-3 rounded-xl bg-[#262a35] border border-primary/30">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="material-symbols-outlined text-primary text-[18px]">verified_user</span>
-                <span className="font-label-caps text-label-caps uppercase text-primary font-bold">
-                  ACTIVE SEVER RECOMMENDATION
-                </span>
-              </div>
-              <p className="font-body-sm text-body-sm text-on-surface">
-                Execute automated battery-storage injection (Zone 4 Domlur microgrid) to sever the link between HAL Substation 04 and traffic controller relays.
+              <p className="text-xs text-gray-200 leading-relaxed">
+                {activeNode.desc}
               </p>
-              <div className="mt-2.5 flex gap-2">
-                <button
-                  onClick={() => {
-                    setSeverDeployed(true);
-                    setToastMessage('Sever action executed: Battery storage injected into Zone 4 microgrid.');
-                    setTimeout(() => setToastMessage(null), 3000);
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-lg font-data-mono-sm text-data-mono-sm font-bold transition-all text-center ${
-                    severDeployed
-                      ? 'bg-tertiary text-on-tertiary'
-                      : 'bg-primary text-on-primary hover:brightness-110'
-                  }`}
-                >
-                  {severDeployed ? 'SEVER ACTION ACTIVE' : 'DEPLOY SEVER ACTION'}
-                </button>
-                <button
-                  onClick={() => onNavigateTab('ai-response-planner')}
-                  className="p-2 rounded-lg bg-[#1c1f2a] hover:bg-[#313540] text-on-surface-variant transition-colors border border-[#3d494c]"
-                  title="Simulate Tradeoff"
-                >
-                  <span className="material-symbols-outlined text-[18px]">tune</span>
-                </button>
+            </div>
+
+            {/* Real-World Telemetry Metrics */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="bg-[#0f131d] p-2.5 rounded-xl border border-[#262a35]">
+                <span className="text-[10px] uppercase font-mono text-outline block mb-0.5">
+                  {activeNode.metricLabel}:
+                </span>
+                <span className={`text-sm font-bold font-mono ${activeNode.colorClass}`}>
+                  {activeNode.metric}
+                </span>
               </div>
+              <div className="bg-[#0f131d] p-2.5 rounded-xl border border-[#262a35]">
+                <span className="text-[10px] uppercase font-mono text-outline block mb-0.5">
+                  Vulnerability Index:
+                </span>
+                <span className="text-sm font-bold font-mono text-error">
+                  {activeNode.vuln} / 10
+                </span>
+              </div>
+            </div>
+
+            {/* Downstream Ripple & Sector Linkage */}
+            <div className="bg-[#1c1f2a] p-3 rounded-xl border border-[#262a35] mb-3 text-xs font-mono">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-outline uppercase text-[10px]">Cascading Spread:</span>
+                <span className="text-tertiary font-bold">{activeNode.ripple}</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-[#262a35]">
+                <span className="text-outline uppercase text-[10px]">Upstream Trigger:</span>
+                <span className="text-white truncate max-w-[180px]">
+                  {activeNode.upstreamFrom ? chainData.nodes[activeNode.upstreamFrom]?.title || 'Ground Zero Incident' : 'Nexus Point'}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Cross-Tab Actions */}
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                onClick={() => onNavigateTab('ai-response-planner')}
+                className="w-full py-2 px-3 rounded-xl bg-primary hover:brightness-110 text-on-primary font-mono text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                <span>Open in AI Response Planner →</span>
+              </button>
+              <button
+                onClick={() => onNavigateTab('resource-command')}
+                className="w-full py-2 px-3 rounded-xl bg-[#1c1f2a] hover:bg-[#262a35] text-white font-mono text-xs font-bold border border-[#3d494c] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px] text-tertiary">local_shipping</span>
+                <span>Inspect Assets in Resource Command →</span>
+              </button>
+              <button
+                onClick={handleExportJSON}
+                className="w-full py-2 px-3 rounded-xl bg-[#0a0e18] hover:bg-[#141824] text-on-surface-variant hover:text-white font-mono text-xs flex items-center justify-center gap-1.5 border border-[#262a35] transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                <span>Export Causal Topology JSON</span>
+              </button>
             </div>
           </div>
 
-          {/* Live Infrastructure Camera Feeds & Geo Validation */}
-          <div className="w-full bg-[#171b26] rounded-xl p-3 shadow-lg border border-[#262a35]">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-label-caps text-label-caps uppercase text-outline">
-                PHYSICAL TELEMETRY FEEDS
-              </span>
-              <span className="font-data-mono-sm text-data-mono-sm text-primary flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span> OPTICAL 4K
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative rounded-lg overflow-hidden group aspect-video bg-[#0a0e18] border border-[#262a35]">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="BESCOM HAL Substation Thermal Camera"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmda90_a5YU1A1gbLaYFMLtn-rb6vJzTzTeT1O5uat9c8ua-7dRUQ-SCBv6iuIOSy467LFyHXIeQWZ0ChqgyPpZjnFAI8EMbcED5gCIjEEMh2DlfYYfIuWufTVhcClYPw_1weDBuTVWTeMu93GjfxSUDBwRJ2DbqNdxQpAeSK_1J4F7l4jM2JTbABG_S65jX6I7GOpsRl3VK0ImANFg9baGAf9nbl4j7jwjeFDVQrJUeo6tQFkz2uP"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e18] via-transparent to-transparent opacity-80"></div>
-                <div className="absolute bottom-1 left-2 right-2 flex justify-between items-end">
-                  <span className="font-data-mono-sm text-[10px] text-on-surface">CAM 04-SUB (IR)</span>
-                  <span className="font-data-mono-sm text-[10px] text-error font-bold">104°C</span>
-                </div>
-              </div>
-
-              <div className="relative rounded-lg overflow-hidden group aspect-video bg-[#0a0e18] border border-[#262a35]">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="Outer Ring Road Bellandur Traffic Camera"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDeA-NFNvl3UiOjJseI1itO94KSZpL3F8irgL9YeCiZ-S9v1CeFbpjzFJJ9rebkZnFKReIbSLGJw6A_nMZ0UJXvlcWb9Sdyc_O1ma9GWcCJoJYbRkyAW8voDFXYuZ13MuKIS6_ELrwkNHBGR03E0FGjSJF5VPXuxDFqdLm-Sl-y3wLjxCHMfZYLhEdemSQ3pcRsZFJygCe5tgoEhGkMuV-280k2QTHqYbIBpmrN1s6rFU-X3nrWjhiJ"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e18] via-transparent to-transparent opacity-80"></div>
-                <div className="absolute bottom-1 left-2 right-2 flex justify-between items-end">
-                  <span className="font-data-mono-sm text-[10px] text-on-surface">SILK BOARD / ORR</span>
-                  <span className="font-data-mono-sm text-[10px] text-secondary font-bold">SLOW 12KM/H</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Global Actions and Simulation Bar */}
-      <div className="mt-4 w-full bg-[#171b26] rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-xl border border-[#262a35]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#262a35] flex items-center justify-center text-primary border border-[#3d494c]">
-            <span className="material-symbols-outlined text-[24px]">hub</span>
-          </div>
-          <div>
-            <h4 className="font-headline-sm text-body-lg text-on-surface font-semibold">
-              Bengaluru Citywide Graph Synthesis Active
+          {/* Scenario Overview Box */}
+          <div className="bg-[#171b26] border border-[#262a35] rounded-2xl p-4 shadow-xl text-xs">
+            <h4 className="font-bold text-white mb-2 flex items-center gap-1.5 font-mono">
+              <span className="material-symbols-outlined text-amber-400 text-[18px]">info</span>
+              <span>Why This Causal Chain Matters:</span>
             </h4>
-            <p className="font-body-sm text-[12px] text-on-surface-variant">
-              38 interconnected municipal edge nodes evaluated across 4 cascade degrees.
+            <p className="text-on-surface-variant leading-relaxed">
+              When an emergency happens at <strong>{currentScenario.locationName.split(' &')[0]}</strong>, municipal departments usually act in isolation. The City OS neural causality model demonstrates how transit delays directly impair ambulance response times and power feeder integrity. Activating circuit breakers early isolates the damage within the golden hour.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
-          <button
-            onClick={handleExportJSON}
-            className="px-3.5 py-2 rounded-lg bg-[#262a35] hover:bg-[#353944] text-on-surface font-data-mono-sm text-data-mono-sm flex items-center gap-2 transition-all border border-[#3d494c]"
-          >
-            <span className="material-symbols-outlined text-[16px]">file_download</span>
-            Export Causal Topology (JSON)
-          </button>
-          <button
-            onClick={handleSimulateAlternative}
-            className="px-3.5 py-2 rounded-lg bg-[#262a35] hover:bg-[#353944] text-on-surface font-data-mono-sm text-data-mono-sm flex items-center gap-2 transition-all border border-[#3d494c]"
-          >
-            <span className="material-symbols-outlined text-[16px]">alt_route</span>
-            Simulate Alternative Cutoff Points
-          </button>
-          <button
-            onClick={() => onNavigateTab('ai-response-planner')}
-            className="px-4 py-2 rounded-lg bg-primary-container hover:bg-primary text-on-primary font-data-mono-sm text-data-mono-sm font-bold flex items-center gap-2 transition-all shadow-md"
-          >
-            <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
-            Launch AI Response Planner
-          </button>
-        </div>
       </div>
 
+      {/* Global Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-10 right-8 bg-[#262a35] text-on-surface px-4 py-2 rounded-lg shadow-2xl flex items-center gap-2 border border-primary z-50">
-          <span className="material-symbols-outlined text-primary">info</span>
-          <span className="font-data-mono-sm text-data-mono-sm">{toastMessage}</span>
+        <div className="fixed bottom-10 right-8 bg-[#171b26]/95 backdrop-blur-md text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-primary z-50 animate-fade-in font-mono text-xs">
+          <span className="material-symbols-outlined text-primary text-[18px]">verified</span>
+          <span>{toastMessage}</span>
         </div>
       )}
     </div>
