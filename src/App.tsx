@@ -29,6 +29,11 @@ import {
   NAMMA_METRO_LINES,
   BENGALURU_ACTIVE_INCIDENTS
 } from './services/bengaluruData';
+import {
+  ScenarioTemplate,
+  getStoredActiveSimulation,
+  storeActiveSimulation
+} from './services/simulationData';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>(() => {
@@ -37,6 +42,9 @@ export default function App() {
   });
   const [activeScenario, setActiveScenario] = useState<string>(() => {
     return localStorage.getItem('blr_cityos_scenario') || 'heatwave';
+  });
+  const [activeSimulationScenario, setActiveSimulationScenario] = useState<ScenarioTemplate>(() => {
+    return getStoredActiveSimulation();
   });
   const [weather, setWeather] = useState<BengaluruWeather | null>(null);
   const [airQuality, setAirQuality] = useState<BengaluruAirQuality | null>(null);
@@ -56,6 +64,11 @@ export default function App() {
     localStorage.setItem('blr_cityos_scenario', scenario);
     setToastMessage(`Scenario Switched: ${scenario.toUpperCase()} • Telemetry Recalibrated`);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleSimulationScenarioChange = (scenario: ScenarioTemplate) => {
+    setActiveSimulationScenario(scenario);
+    storeActiveSimulation(scenario);
   };
 
   // Fetch real-time Bengaluru public data on mount & on refresh
@@ -147,7 +160,11 @@ export default function App() {
           )}
 
           {activeTab === 'what-if-simulation-lab' && (
-            <WhatIfSimulationLab onNavigateTab={handleTabChange} />
+            <WhatIfSimulationLab
+              onNavigateTab={handleTabChange}
+              activeScenario={activeSimulationScenario}
+              onSelectScenario={handleSimulationScenarioChange}
+            />
           )}
 
           {activeTab === 'resource-command' && (
@@ -156,6 +173,8 @@ export default function App() {
               substations={BESCOM_SUBSTATIONS}
               metroLines={NAMMA_METRO_LINES}
               onNavigateTab={handleTabChange}
+              activeSimulation={activeSimulationScenario}
+              onSelectSimulation={handleSimulationScenarioChange}
             />
           )}
 

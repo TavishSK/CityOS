@@ -93,10 +93,11 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({
       id: 'resource-command',
       title: 'Resource Command',
       icon: 'local_shipping',
-      desc: 'Live fleet dispatch and asset inventory tracking for emergency vehicles across Bengaluru.',
+      desc: 'Live fleet dispatch and asset inventory tracking, automatically updated whenever a crisis is simulated in the What-If Lab.',
       details: [
-        'Emergency Fleets: 108 GVK-EMRI Ambulances, BMTC transit buses, BBMP water misting tankers, and BESCOM mobile substations.',
-        'Dispatch Table: Filter by status (EN ROUTE, DISPATCHED, STANDBY) and deploy resources to affected zones.'
+        'Automatic Simulation Sync: Dispatches dedicated units tailored to the active simulation (Police SAR squads, fire engines, dewatering pumps, trauma ambulances, mobile gen-sets).',
+        'Direct Action Control: Reroute assets via alternate corridors, commit units on-scene, and call in mutual-aid reserves.',
+        'Cost & ETA Tracking: Real-time operational expenditure matching the simulation budget and clearance timeline.'
       ]
     },
     {

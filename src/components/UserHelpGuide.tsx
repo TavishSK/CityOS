@@ -85,10 +85,11 @@ export const UserHelpGuide: React.FC<UserHelpGuideProps> = ({ onNavigateTab }) =
       id: 'resource-command',
       name: 'Resource Command',
       icon: 'local_shipping',
-      desc: 'Live fleet GPS and asset inventory management for emergency municipal responders.',
+      desc: 'Live fleet GPS and asset inventory management for emergency municipal responders, automatically synchronized with the What-If Simulation Lab.',
       highlights: [
-        'Active Fleets: 108 GVK-EMRI Ambulances, BMTC Shuttles, BBMP Water Tankers, and BESCOM Mobile Substations.',
-        'Filter by Status: Real-time tracking of DISPATCHED, EN ROUTE, and STANDBY units across city zones.'
+        'Simulation Sync: Whenever any crisis is simulated in the Lab, Resource Command automatically updates with dedicated fleet vehicles, incident coordinates, and budget spend.',
+        'Active Fleets: 108 GVK-EMRI Ambulances, BMTC Feeder Shuttles, KSFES Fire Tenders, BBMP Dewatering Pumps, Police SAR Units, and BESCOM Mobile Substations.',
+        'Interactive Control: Reroute vehicles on the fly, confirm on-scene commitment, and dispatch mutual-aid auxiliary units.'
       ]
     },
     {

@@ -121,6 +121,19 @@ CRITICAL RULES:
     { "dept": "Agency Name (e.g. Bengaluru City Police / KSFES / BBMP / BESCOM)", "deptColor": "text-primary bg-primary/10 border-primary/30", "action": "Exact concrete action taken", "eta": "Timeframe" },
     { "dept": "Second Agency", "deptColor": "text-amber-400 bg-amber-500/10 border-amber-500/30", "action": "Exact concrete action taken", "eta": "Timeframe" }
   ],
+  "dispatchedAssets": [
+    {
+      "id": "AST-SIM-01",
+      "name": "Specific unit name (e.g. BBMP Dewatering Pump 04, BTP Quick Interceptor 12, KSFES Foam Tender 02)",
+      "type": "rescue",
+      "agency": "Exact Bangalore Agency (BBMP / Police / Fire / BESCOM / Health / BMTC)",
+      "location": "Specific street or landmark near incident",
+      "status": "ON SCENE",
+      "eta": "On Site",
+      "capacity": "Capacity specification",
+      "task": "Active emergency mission"
+    }
+  ],
   "budget": {
     "operationalCost": "₹X.X Lakhs (or ₹XX,000 for small events)",
     "operationalCostDetails": "Breakdown: e.g. 12 patrol vehicles + drone operator + PA systems",
