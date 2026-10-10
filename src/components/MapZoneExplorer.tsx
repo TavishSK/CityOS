@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BengaluruWeather, BengaluruAirQuality } from '../services/bengaluruData';
+import { BengaluruTacticalMap } from './BengaluruTacticalMap';
 
 interface MapZoneExplorerProps {
   weather: BengaluruWeather | null;
@@ -182,264 +183,14 @@ export const MapZoneExplorer: React.FC<MapZoneExplorerProps> = ({
           </div>
 
           {/* Main Tactical GIS Map Display Frame */}
-          <div className="relative w-full h-[620px] bg-[#0a0e18] rounded-xl overflow-hidden shadow-2xl flex items-center justify-center border border-[#262a35]">
-            {/* GIS Map Base Layer */}
-            <div
-              className="absolute inset-0 w-full h-full bg-cover bg-center opacity-40 mix-blend-luminosity filter contrast-125"
-              style={{
-                backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuButD0jf0NhV8QLl3mxF3ZKTs6uOJvWx-0_ti2AwX8cWf9n1pGgNWACt6LBoKsjjHGNUYRfnH1TminPWHDGtkD6BTc7ABC6b8xZbTQLMf01O963vqwRBqSH9eT87X0YgxSVVZ4R8Rxq1apr3b2CwpPrlp16at7cowZYkCGdAv9n3ByH6SwXG_POZPhPsCkSShjWDiqlbVd-CY9j6ezv7VqfgBERmxIDcXMVhy1kzwHeiabYMs5K05Ht')`
-              }}
-            ></div>
-
-            {/* Ambient Cybernetic Grid Overlay */}
-            <div className="absolute inset-0 bg-[radial-gradient(#06b6d4_1px,transparent_1px)] [background-size:24px_24px] opacity-15 pointer-events-none"></div>
-
-            {/* Dynamic Vector Polygonal District Topology */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-auto" preserveAspectRatio="none" viewBox="0 0 1000 700">
-              <defs>
-                <linearGradient id="grad-zone4" x1="0%" x2="100%" y1="0%" y2="100%">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity="0.45"></stop>
-                  <stop offset="100%" stopColor="#991b1b" stopOpacity="0.15"></stop>
-                </linearGradient>
-                <linearGradient id="grad-zone7" x1="0%" x2="100%" y1="0%" y2="100%">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.35"></stop>
-                  <stop offset="100%" stopColor="#78350f" stopOpacity="0.1"></stop>
-                </linearGradient>
-                <linearGradient id="grad-zone9" x1="0%" x2="100%" y1="0%" y2="100%">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.25"></stop>
-                  <stop offset="100%" stopColor="#083344" stopOpacity="0.05"></stop>
-                </linearGradient>
-                <linearGradient id="grad-zone12" x1="0%" x2="100%" y1="0%" y2="100%">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.2"></stop>
-                  <stop offset="100%" stopColor="#064e3b" stopOpacity="0.05"></stop>
-                </linearGradient>
-                <filter height="140%" id="vector-glow" width="140%" x="-20%" y="-20%">
-                  <feGaussianBlur result="blur" stdDeviation="3"></feGaussianBlur>
-                  <feComposite in="SourceGraphic" in2="blur" operator="over"></feComposite>
-                </filter>
-              </defs>
-
-              {/* Zone 12: South / Bommanahalli / Electronic City (Green/Nominal) */}
-              <polygon
-                className="cursor-pointer hover:opacity-90 transition-opacity"
-                fill="url(#grad-zone12)"
-                points="120,440 280,410 390,560 300,680 90,620"
-                stroke="#4edea3"
-                strokeDasharray="4,2"
-                strokeWidth="1.5"
-                onClick={() => setSelectedZone('12')}
-              ></polygon>
-              <text fill="#4edea3" fontFamily="JetBrains Mono" fontSize="11" fontWeight="700" letterSpacing="1" x="220" y="540">
-                ZONE 12 // KORAMANGALA & E-CITY
-              </text>
-              <text fill="#dfe2f1" fontFamily="JetBrains Mono" fontSize="10" x="220" y="558">
-                TEMP 33.4°C • NOMINAL
-              </text>
-
-              {/* Zone 9: West / Malleshwaram & Rajajinagar (Cyan/Moderate) */}
-              <polygon
-                className="cursor-pointer hover:opacity-90 transition-opacity"
-                fill="url(#grad-zone9)"
-                points="150,150 360,110 440,290 310,380 180,310"
-                stroke="#4cd7f6"
-                strokeWidth="1.5"
-                onClick={() => setSelectedZone('9')}
-              ></polygon>
-              <text fill="#4cd7f6" fontFamily="JetBrains Mono" fontSize="11" fontWeight="700" letterSpacing="1" x="240" y="230">
-                ZONE 09 // MALLESHWARAM CORRIDOR
-              </text>
-              <text fill="#dfe2f1" fontFamily="JetBrains Mono" fontSize="10" x="240" y="248">
-                TEMP 35.8°C • ADVISORY
-              </text>
-
-              {/* Zone 7: Industrial East / Peenya (Amber/Warning) */}
-              <polygon
-                className="cursor-pointer hover:opacity-90 transition-opacity"
-                fill="url(#grad-zone7)"
-                points="680,210 930,160 960,420 790,470 690,360"
-                stroke="#f59e0b"
-                strokeWidth="1.5"
-                onClick={() => setSelectedZone('7')}
-              ></polygon>
-              <text fill="#f59e0b" fontFamily="JetBrains Mono" fontSize="11" fontWeight="700" letterSpacing="1" x="760" y="300">
-                ZONE 07 // PEENYA INDUSTRIAL HUB
-              </text>
-              <text fill="#dfe2f1" fontFamily="JetBrains Mono" fontSize="10" x="760" y="318">
-                TEMP 38.9°C • HIGH LOAD
-              </text>
-
-              {/* Zone 4: Central Commercial / MG Road - Indiranagar (CRITICAL HAZARD) */}
-              <polygon
-                className="cursor-pointer transition-all duration-300"
-                fill="url(#grad-zone4)"
-                filter="url(#vector-glow)"
-                id="poly-zone-4"
-                points="420,190 640,150 720,380 570,490 390,390"
-                stroke="#ffb4ab"
-                strokeWidth="2.5"
-                onClick={() => setSelectedZone('4')}
-              ></polygon>
-
-              {/* Heat Canyon Concentric Heatwave Shockwaves */}
-              <circle cx="530" cy="310" fill="none" opacity="0.6" r="45" stroke="#ef4444" strokeWidth="1.5">
-                <animate attributeName="r" dur="4s" repeatCount="indefinite" values="30;95;30"></animate>
-                <animate attributeName="opacity" dur="4s" repeatCount="indefinite" values="0.7;0.1;0.7"></animate>
-              </circle>
-              <circle cx="530" cy="310" fill="none" opacity="0.4" r="75" stroke="#ffb4ab" strokeDasharray="3,3" strokeWidth="1"></circle>
-              <line opacity="0.8" stroke="#4cd7f6" strokeDasharray="2,2" strokeWidth="1" x1="530" x2="610" y1="310" y2="180"></line>
-              <circle cx="530" cy="310" fill="#4cd7f6" r="4"></circle>
-            </svg>
-
-            {/* Dynamic Map Pins & Micro Markers */}
-            {/* Hospital 1: St. John's Emergency */}
-            <div className="absolute top-[28%] left-[64%] transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#0a0e18]/90 px-2 py-1 rounded shadow-lg backdrop-blur cursor-pointer hover:scale-105 transition-transform border border-error/50">
-              <span className="w-2.5 h-2.5 rounded-full bg-error animate-ping"></span>
-              <span className="material-symbols-outlined text-error text-[16px]">local_hospital</span>
-              <div className="flex flex-col">
-                <span className="font-data-mono-sm text-[10px] text-on-surface font-bold leading-tight">
-                  St. John's Hospital ER
-                </span>
-                <span className="font-data-mono-sm text-[9px] text-error font-bold">92% OCCUPIED</span>
-              </div>
-            </div>
-
-            {/* Hospital 2: Bowring & Lady Curzon */}
-            <div className="absolute bottom-[32%] left-[22%] transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#0a0e18]/90 px-2 py-1 rounded shadow-lg backdrop-blur cursor-pointer hover:scale-105 transition-transform border border-tertiary/40">
-              <span className="material-symbols-outlined text-tertiary text-[16px]">local_hospital</span>
-              <div className="flex flex-col">
-                <span className="font-data-mono-sm text-[10px] text-on-surface font-bold leading-tight">
-                  Bowring &amp; Lady Curzon
-                </span>
-                <span className="font-data-mono-sm text-[9px] text-tertiary">68% NOMINAL</span>
-              </div>
-            </div>
-
-            {/* Cooling Center Alpha: Kanteerava Cooling Hub */}
-            <div className="absolute top-[48%] left-[45%] transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#0a0e18]/90 px-2 py-1 rounded shadow-lg backdrop-blur border-l-2 border-primary cursor-pointer hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-primary text-[16px]">ac_unit</span>
-              <div className="flex flex-col">
-                <span className="font-data-mono-sm text-[10px] text-on-surface font-bold leading-tight">
-                  Kanteerava Cooling Hub
-                </span>
-                <span className="font-data-mono-sm text-[9px] text-primary">COOLING ACTIVE (412 PAX)</span>
-              </div>
-            </div>
-
-            {/* Cooling Center Beta: Koramangala Sanctuary */}
-            <div className="absolute bottom-[24%] left-[72%] transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#0a0e18]/90 px-2 py-1 rounded shadow-lg backdrop-blur border-l-2 border-primary cursor-pointer hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-primary text-[16px]">ac_unit</span>
-              <div className="flex flex-col">
-                <span className="font-data-mono-sm text-[10px] text-on-surface font-bold leading-tight">
-                  Koramangala Sanctuary
-                </span>
-                <span className="font-data-mono-sm text-[9px] text-tertiary">CAPACITY: 850 FREE</span>
-              </div>
-            </div>
-
-            {/* Mobile EMS Unit 09 in Transit */}
-            <div className="absolute top-[38%] left-[34%] transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 bg-[#262a35] px-2 py-0.5 rounded shadow-md border border-[#3d494c]">
-              <span className="material-symbols-outlined text-secondary text-[14px]">ambulance</span>
-              <span className="font-data-mono-sm text-[9px] text-secondary font-mono">EMS-09 (EN ROUTE)</span>
-            </div>
-
-            {/* Interactive Pinned Zone 4 Inspection Callout Card */}
-            {selectedZone === '4' && (
-              <div className="absolute top-[18%] left-[42%] w-72 bg-[#171b26]/95 backdrop-blur-xl p-3 rounded-xl shadow-2xl transition-all duration-300 border border-error/60 z-30">
-                <div className="flex items-center justify-between pb-1 mb-1 border-b border-[#262a35]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-error"></span>
-                    <span className="font-label-caps text-label-caps uppercase text-error font-bold">
-                      ZONE 04: CANYON CORE (MG RD)
-                    </span>
-                  </div>
-                  <span className="font-data-mono-sm text-data-mono-sm text-on-surface-variant">NODE_441</span>
-                </div>
-                <div className="flex flex-col gap-1 mb-2">
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-body-sm text-body-sm text-on-surface-variant">Ambient Surface Temp:</span>
-                    <span className="font-data-mono-lg text-data-mono-lg text-error font-bold">
-                      {currentTimeline.temp} <span className="font-data-mono-sm text-[11px] text-error">({currentTimeline.delta})</span>
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-body-sm text-body-sm text-on-surface-variant">Elderly / Vulnerable Index:</span>
-                    <span className="font-data-mono-sm text-data-mono-sm text-on-surface font-semibold">
-                      34,200 Citizens
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-body-sm text-body-sm text-on-surface-variant">HAL Substation 4B Load:</span>
-                    <span className="font-data-mono-sm text-data-mono-sm text-error font-bold">
-                      94.2% (CRITICAL)
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-body-sm text-body-sm text-on-surface-variant">Active Cooling Hubs:</span>
-                    <span className="font-data-mono-sm text-data-mono-sm text-tertiary">3 Operable / 1 Full</span>
-                  </div>
-                </div>
-                <div className="w-full bg-[#313540] h-1.5 rounded-full overflow-hidden mb-2">
-                  <div className="bg-error h-full rounded-full" style={{ width: '94.2%' }}></div>
-                </div>
-                <div className="flex items-center justify-between gap-1">
-                  <button
-                    onClick={() => onNavigateTab('ai-predictions-and-alerts')}
-                    className="flex-1 bg-primary text-on-primary font-data-mono-sm text-[11px] font-bold py-1 rounded hover:brightness-110 transition-colors"
-                  >
-                    INSPECT GRID
-                  </button>
-                  <button
-                    onClick={() => setToastMessage('4 Indira Canteen Hydration points tagged.')}
-                    className="bg-[#262a35] hover:bg-[#313540] text-on-surface px-2 py-1 rounded transition-colors"
-                    title="Locate Hydration Points"
-                  >
-                    <span className="material-symbols-outlined text-[16px] align-middle">water_drop</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Floating Map Instrument Tools (Bottom-Left) */}
-            <div className="absolute bottom-4 left-4 bg-[#171b26]/90 backdrop-blur-md p-1 rounded-xl shadow-lg flex items-center gap-1 border border-[#262a35]">
-              <button
-                onClick={() => setSelectedZone('4')}
-                className="p-1.5 hover:bg-[#262a35] rounded text-on-surface-variant hover:text-on-surface"
-                title="Recenter Target"
-              >
-                <span className="material-symbols-outlined text-[18px]">my_location</span>
-              </button>
-              <button className="p-1.5 hover:bg-[#262a35] rounded text-on-surface-variant hover:text-on-surface" title="Zoom In">
-                <span className="material-symbols-outlined text-[18px]">add</span>
-              </button>
-              <button className="p-1.5 hover:bg-[#262a35] rounded text-on-surface-variant hover:text-on-surface" title="Zoom Out">
-                <span className="material-symbols-outlined text-[18px]">remove</span>
-              </button>
-              <span className="w-px h-4 bg-[#313540] mx-0.5"></span>
-              <button className="p-1.5 hover:bg-[#262a35] rounded text-on-surface-variant hover:text-on-surface" title="3D Elevation Tilt">
-                <span className="material-symbols-outlined text-[18px]">3d_rotation</span>
-              </button>
-            </div>
-
-            {/* Dynamic Map Legend (Bottom-Right) */}
-            <div className="absolute bottom-4 right-4 bg-[#171b26]/90 backdrop-blur-md px-3 py-1 rounded-xl shadow-lg hidden sm:flex items-center gap-3 font-data-mono-sm text-[10px] border border-[#262a35]">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-error"></span>
-                <span className="text-on-surface-variant">&gt;40°C Critical</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-amber-500"></span>
-                <span className="text-on-surface-variant">36-39°C Elevated</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-primary"></span>
-                <span className="text-on-surface-variant">32-35°C Advisory</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-tertiary"></span>
-                <span className="text-on-surface-variant">&lt;31°C Nominal</span>
-              </div>
-            </div>
-          </div>
+          <BengaluruTacticalMap
+            height="620px"
+            activeLayer={activeLayer}
+            selectedZone={selectedZone}
+            onSelectZone={(zoneId) => setSelectedZone(zoneId)}
+            interactive={true}
+            showControls={true}
+          />
 
           {/* Real-time Municipal Telemetry Data Feeds (Under Map Bar) */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -501,19 +252,22 @@ export const MapZoneExplorer: React.FC<MapZoneExplorerProps> = ({
             </div>
 
             {/* Zone Visual Graphic Representation */}
-            <div className="relative w-full h-32 rounded-lg overflow-hidden bg-[#1c1f2a] border border-[#262a35]">
-              <div
-                className="w-full h-full bg-cover bg-center opacity-70"
-                style={{
-                  backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuCmxdHhprsjcgFIkwbTDzs_9egrwmZCKTcET-WkxZrfvSyF3b8rF1AEW1dOiKMWFMz5KMndnjD5jp2EMBOqu2K8_oBCi6ycTyZvMcywjTipoIbq_Fz7Hnrb8ZL3Aw_465zqQf7hD0OnZ4p-jpGPxCS3fLZN2AYJ3j_bsGk1Elc16EbCtGffgR9kbZJI_enczfCfFJpwz8ZL-p1xCjuecAuYxpXPZylhs5Du6OwJ98H2b_SvgE1MeewH')`
-                }}
-              ></div>
-              <div className="absolute inset-0 bg-gradient-to-t from-[#171b26] via-transparent to-transparent"></div>
+            <div className="relative w-full h-32 rounded-lg overflow-hidden bg-[#1c1f2a] border border-[#262a35] flex items-center justify-center">
+              <div className="absolute inset-0 bg-gradient-to-br from-error/20 via-transparent to-primary/10"></div>
+              <svg className="w-full h-full opacity-60" viewBox="0 0 300 120" preserveAspectRatio="none">
+                <path d="M0,80 Q75,30 150,60 T300,20 L300,120 L0,120 Z" fill="rgba(239, 68, 68, 0.25)" />
+                <path d="M0,95 Q75,60 150,85 T300,45 L300,120 L0,120 Z" fill="rgba(6, 182, 212, 0.15)" />
+                <polyline points="0,80 75,30 150,60 225,25 300,20" fill="none" stroke="#ef4444" strokeWidth="2" />
+              </svg>
+              <div className="absolute top-2 left-3 font-mono text-[10px] text-primary flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-error animate-ping"></span>
+                <span>BENGALURU ZONE 04 SENSOR RADAR (MG RD / INDIRANAGAR)</span>
+              </div>
               <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
                 <span className="font-data-mono-sm text-data-mono-sm text-on-surface font-semibold">
                   Population: 184,500 Density/km²
                 </span>
-                <span className="font-data-mono-sm text-data-mono-sm text-error bg-[#0a0e18]/80 px-1.5 py-0.5 rounded">
+                <span className="font-data-mono-sm text-data-mono-sm text-error bg-[#0a0e18]/80 px-1.5 py-0.5 rounded border border-error/30">
                   94% AC Stress
                 </span>
               </div>

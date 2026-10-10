@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BengaluruTacticalMap } from './BengaluruTacticalMap';
 import {
   BengaluruWeather,
   BengaluruAirQuality,
@@ -29,6 +30,7 @@ export const CityOverviewDashboard: React.FC<CityOverviewDashboardProps> = ({
   setActiveScenario
 }) => {
   const [selectedOverlay, setSelectedOverlay] = useState<'thermal' | 'substations' | 'cooling'>('thermal');
+  const [dashboardView, setDashboardView] = useState<'map' | 'telemetry' | 'incidents' | 'all'>('map');
   const [selectedZoneModal, setSelectedZoneModal] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<'severity' | 'time'>('severity');
   const [chatInput, setChatInput] = useState('');
@@ -68,21 +70,71 @@ export const CityOverviewDashboard: React.FC<CityOverviewDashboardProps> = ({
     sources: string[];
   }>(queryData['substation-hospital']);
 
-  const handleSendChat = () => {
+  const handleSendChat = async () => {
     if (!chatInput.trim()) return;
     const query = chatInput.trim();
     setChatInput('');
     setIsSynthesizing(true);
 
-    setTimeout(() => {
-      setIsSynthesizing(false);
-      setActiveAiAnswer({
-        title: `Synthesized Command Directive for: "${query}"`,
-        desc: `Autonomous telemetry correlation complete across BESCOM, BBMP, and BTP: Command path validated with zero contradictory resource locks. Cross-departmental impact mitigated with estimated 96.4% risk reduction for Bengaluru urban core.`,
-        rec: `Executed automated signal synchronization and dispatched auxiliary hydration units via BBMP Command Center Protocol 104-B.`,
-        sources: ['#BBMP-CentralMesh', '#BESCOM-Telemetry-HAL', '#BMRCL-PurpleLine-RSS']
+    try {
+      // 1. Try server-side simulation endpoint
+      const res = await fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: query }),
       });
-    }, 700);
+
+      if (res.ok) {
+        const data = await res.json();
+        setActiveAiAnswer({
+          title: `Telemetry Directive: ${data.name || query}`,
+          desc: `${data.whatHappened || ''} Traffic Delay: ${data.consequences?.traffic?.delay || '+15 mins'}. Medical Readiness: ${data.consequences?.healthEmergency?.hospitalName || 'District ER'}. Direct Operations Cost: ${data.budget?.operationalCost || '₹1.2 Lakhs'}.`,
+          rec: `${data.cityActions?.[0]?.action || 'Synchronize city agency telemetry and coordinate green corridor.'}`,
+          sources: [
+            `#${data.zone?.split(' / ')[0]?.replace(/[^a-zA-Z0-9]/g, '') || 'BLR-Central'}`,
+            `#${data.cityActions?.[0]?.dept?.split(' ')[0] || 'Police'}-Telemetry`,
+            '#Bengaluru-CityOS-Mesh'
+          ]
+        });
+        return;
+      }
+    } catch (_e) {
+      // Fallback to local semantic generator
+    } finally {
+      setIsSynthesizing(false);
+    }
+
+    // Heuristic semantic synthesizer fallback
+    const qLower = query.toLowerCase();
+    if (qLower.includes('child') || qLower.includes('missing') || qLower.includes('cubbon')) {
+      setActiveAiAnswer({
+        title: `Protocol Amber: Missing Person Search at Cubbon Park Core`,
+        desc: `Perimeter gates sealed across Kasturba Road and High Court entrances. 14 police patrol squads deploying thermal camera drones across dense Bal Bhavan wooded areas. Pedestrian exits subject to visual verification.`,
+        rec: `Maintain perimeter gate lockdown; broadcast child description across Cubbon Park Namma Metro turnstiles and Hudson Circle BMTC bus stops.`,
+        sources: ['#BengaluruPolice-CubbonPark', '#BBMP-Parks-BalBhavan', '#BMRCL-MetroSecurity']
+      });
+    } else if (qLower.includes('fire') || qLower.includes('commercial') || qLower.includes('flame')) {
+      setActiveAiAnswer({
+        title: `Level-2 Fire Containment: Commercial Street & Tasker Town`,
+        desc: `6 KSFES fire tenders and aerial hydraulic platforms active on Ibrahim Sahib Street. BESCOM isolated Tasker Town 11kV transformer to forestall secondary electrical explosions. Bowring Hospital ER triage prepared.`,
+        rec: `Maintain traffic diversion via Infantry Road and Dickenson Road; keep emergency water hydrant pressure boosted at 85 PSI.`,
+        sources: ['#KSFES-FireCommand', '#BESCOM-Shivajinagar11kV', '#BowringHospital-Trauma']
+      });
+    } else if (qLower.includes('flood') || qLower.includes('hebbal') || qLower.includes('rain')) {
+      setActiveAiAnswer({
+        title: `Monsoon Inundation Mitigation: Hebbal Flyover & Bellary Road`,
+        desc: `Hebbal lake overflow channel cleared by 6 high-power trailer pumps (15,000 LPM). Bellary Road airport traffic diverted via Thanisandra Main Road and Hennur ORR.`,
+        rec: `Keep Thanisandra green corridor active; deploy auxiliary dewatering suction tankers along Esteem Mall underpass.`,
+        sources: ['#BBMP-StormwaterDivision', '#BTP-AirportExpressway', '#BESCOM-SahakarNagar']
+      });
+    } else {
+      setActiveAiAnswer({
+        title: `Synthesized Municipal Directive: "${query}"`,
+        desc: `Autonomous telemetry correlation validated across Bengaluru agencies. Field deployment dispatched with proportional operational budget and dynamic traffic signal phase adjustments.`,
+        rec: `Synchronize cross-departmental dispatch between Bengaluru City Police, BBMP Ward Marshals, and BESCOM field engineers.`,
+        sources: ['#BBMP-CentralMesh', '#BTP-TrafficOps', '#BengaluruCityOS-Core']
+      });
+    }
   };
 
   const handleBroadcast = () => {
@@ -355,8 +407,77 @@ export const CityOverviewDashboard: React.FC<CityOverviewDashboardProps> = ({
         </div>
       </div>
 
-      {/* Real-Time Multi-Feed Split Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      {/* Console View Switcher to De-congest View */}
+      <div className="flex items-center justify-between gap-3 bg-[#171b26] p-2.5 rounded-xl border border-[#262a35] shadow-md flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-label-caps text-[10px] text-outline uppercase font-bold tracking-wider pl-1">
+            CONSOLE VIEW:
+          </span>
+          <div className="flex items-center gap-1 bg-[#1c1f2a] p-1 rounded-lg border border-[#262a35] flex-wrap">
+            <button
+              onClick={() => setDashboardView('map')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                dashboardView === 'map'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-white hover:bg-[#262a35]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">map</span>
+              <span>Tactical Map &amp; Spatial</span>
+            </button>
+
+            <button
+              onClick={() => setDashboardView('telemetry')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                dashboardView === 'telemetry'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-white hover:bg-[#262a35]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">bolt</span>
+              <span>Grid &amp; Traffic Corridors</span>
+            </button>
+
+            <button
+              onClick={() => setDashboardView('incidents')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                dashboardView === 'incidents'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-white hover:bg-[#262a35]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">warning</span>
+              <span>Incident Matrix &amp; Triage</span>
+            </button>
+
+            <button
+              onClick={() => setDashboardView('all')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                dashboardView === 'all'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-white hover:bg-[#262a35]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">dashboard</span>
+              <span>All Consoles</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigateTab('user-help-guide')}
+            className="bg-[#262a35] hover:bg-primary hover:text-on-primary text-primary px-3 py-1.5 rounded-lg text-xs font-mono flex items-center gap-1.5 border border-[#3d494c] transition-all cursor-pointer font-bold shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[16px]">help_center</span>
+            <span>How to Use / Features Guide</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Real-Time Multi-Feed Split Grid (Tactical Map) */}
+      {(dashboardView === 'map' || dashboardView === 'all') && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* Left 8 cols: Live City Sensor Map Summary Widget */}
         <div className="lg:col-span-8 bg-[#171b26] rounded-xl p-3 shadow-md border border-[#262a35] flex flex-col justify-between gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -406,105 +527,13 @@ export const CityOverviewDashboard: React.FC<CityOverviewDashboardProps> = ({
           </div>
 
           {/* Interactive GIS Geo Canvas */}
-          <div className="relative w-full h-[420px] rounded-lg overflow-hidden bg-[#0a0e18] flex items-center justify-center group border border-[#262a35]">
-            {/* Background Map Imagery with Bengaluru coordinate context */}
-            <div
-              className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity filter contrast-125"
-              style={{
-                backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuButD0jf0NhV8QLl3mxF3ZKTs6uOJvWx-0_ti2AwX8cWf9n1pGgNWACt6LBoKsjjHGNUYRfnH1TminPWHDGtkD6BTc7ABC6b8xZbTQLMf01O963vqwRBqSH9eT87X0YgxSVVZ4R8Rxq1apr3b2CwpPrlp16at7cowZYkCGdAv9n3ByH6SwXG_POZPhPsCkSShjWDiqlbVd-CY9j6ezv7VqfgBERmxIDcXMVhy1kzwHeiabYMs5K05Ht')`
-              }}
-            ></div>
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e18] via-transparent to-[#0a0e18]/80 pointer-events-none"></div>
-
-            {/* Dynamic Grid lines */}
-            <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <pattern height="40" id="gis-grid" patternUnits="userSpaceOnUse" width="40">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#3d494c" strokeWidth="0.5"></path>
-                </pattern>
-              </defs>
-              <rect fill="url(#gis-grid)" height="100%" width="100%"></rect>
-            </svg>
-
-            {/* Simulated Heatwave Isotherm blobs */}
-            <div className="absolute top-1/4 left-1/3 w-64 h-64 rounded-full bg-error/20 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-1/3 right-1/4 w-72 h-72 rounded-full bg-secondary-container/25 blur-3xl pointer-events-none"></div>
-
-            {/* Interactive Node Tag: Zone 4 East / Central Core (CRITICAL) */}
-            <div
-              onClick={() => setSelectedZoneModal('zone-4')}
-              className="absolute top-28 left-1/4 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer group/pin z-20"
-            >
-              <div className="relative flex items-center justify-center">
-                <span className="absolute w-8 h-8 rounded-full bg-error/40 animate-ping"></span>
-                <span className="w-4 h-4 rounded-full bg-error flex items-center justify-center shadow-[0_0_12px_rgba(255,180,171,0.8)]"></span>
-              </div>
-              <div className="mt-2 bg-[#262a35]/95 backdrop-blur-md px-2.5 py-1.5 rounded-lg shadow-xl text-center pointer-events-auto border border-[#3d494c]">
-                <div className="font-data-mono-sm text-data-mono-sm text-error font-bold flex items-center gap-1 justify-center">
-                  <span>ZONE 4 CENTRAL (MG RD / INDIRANAGAR)</span>
-                  <span className="material-symbols-outlined text-[12px]">warning</span>
-                </div>
-                <div className="font-label-caps text-[9px] text-on-surface-variant">
-                  TEMP: {currentTemp}°C | HAL SUB_04 LOAD: 93.5%
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive Node Tag: Zone 7 Dasarahalli / Peenya Industrial */}
-            <div
-              onClick={() => setSelectedZoneModal('zone-7')}
-              className="absolute top-1/2 right-1/3 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer z-20"
-            >
-              <div className="relative flex items-center justify-center">
-                <span className="w-3.5 h-3.5 rounded-full bg-secondary flex items-center justify-center shadow-[0_0_8px_rgba(208,188,255,0.8)]"></span>
-              </div>
-              <div className="mt-2 bg-[#262a35]/95 backdrop-blur-md px-2 py-1 rounded shadow-xl text-center border border-[#3d494c]">
-                <div className="font-data-mono-sm text-data-mono-sm text-secondary font-bold">
-                  ZONE 7 INDUSTRIAL (PEENYA)
-                </div>
-                <div className="font-label-caps text-[9px] text-on-surface-variant">
-                  AQI: {aqiValue} | SUB_07 220KV GRID
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive Node Tag: Zone 12 Bommanahalli / Electronic City */}
-            <div
-              onClick={() => setSelectedZoneModal('zone-12')}
-              className="absolute bottom-16 left-1/2 -translate-x-1/2 flex flex-col items-center cursor-pointer z-20"
-            >
-              <div className="relative flex items-center justify-center">
-                <span className="w-3 h-3 rounded-full bg-tertiary flex items-center justify-center shadow-[0_0_8px_rgba(78,222,163,0.8)]"></span>
-              </div>
-              <div className="mt-1.5 bg-[#262a35]/90 backdrop-blur-md px-2 py-1 rounded shadow-xl text-center border border-[#3d494c]">
-                <div className="font-data-mono-sm text-data-mono-sm text-tertiary font-bold">
-                  ZONE 12 SOUTH (KORAMANGALA / E-CITY)
-                </div>
-                <div className="font-label-caps text-[9px] text-on-surface-variant">
-                  STABLE | 6 INDIRA CANTEENS ACTIVE
-                </div>
-              </div>
-            </div>
-
-            {/* Map floating command HUD controls */}
-            <div className="absolute bottom-3 right-3 bg-[#262a35]/90 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-2 z-30 border border-[#3d494c]">
-              <button className="p-1 text-on-surface-variant hover:text-on-surface transition-colors" title="Zoom in">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-              </button>
-              <button className="p-1 text-on-surface-variant hover:text-on-surface transition-colors" title="Zoom out">
-                <span className="material-symbols-outlined text-[16px]">remove</span>
-              </button>
-              <span className="w-px h-3 bg-outline-variant"></span>
-              <button
-                onClick={() => onNavigateTab('map-and-zone-explorer')}
-                className="p-1 text-on-surface-variant hover:text-primary transition-colors"
-                title="Open Map & Zone Explorer"
-              >
-                <span className="material-symbols-outlined text-[16px]">map</span>
-              </button>
-              <span className="font-data-mono-sm text-[10px] text-primary">GEO: 12.9716° N, 77.5946° E</span>
-            </div>
-          </div>
+          <BengaluruTacticalMap
+            height="420px"
+            activeLayer={selectedOverlay}
+            onSelectZone={(id) => setSelectedZoneModal(`zone-${id}`)}
+            interactive={true}
+            showControls={true}
+          />
 
           {/* Quick zone cards footer */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
@@ -663,6 +692,157 @@ export const CityOverviewDashboard: React.FC<CityOverviewDashboardProps> = ({
           </div>
         </div>
       </div>
+      )}
+
+      {/* Grid & Traffic Telemetry Console */}
+      {(dashboardView === 'telemetry' || dashboardView === 'all') && (
+        <div className="flex flex-col gap-4 animate-fade-in">
+          {/* Section Header */}
+          <div className="flex items-center justify-between pb-1 border-b border-[#262a35]">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-[22px]">alt_route</span>
+              <div>
+                <h2 className="font-headline-sm text-headline-sm text-on-surface">
+                  Bengaluru Traffic Corridors &amp; BESCOM Power Grid Telemetry
+                </h2>
+                <p className="font-body-sm text-[12px] text-on-surface-variant">
+                  Live OSRM commute routing and SCADA receiving substation load indicators
+                </p>
+              </div>
+            </div>
+            <span className="font-data-mono-sm text-[11px] text-tertiary bg-tertiary/10 border border-tertiary/30 px-2 py-0.5 rounded">
+              7 CORRIDORS • 6 SUBSTATIONS
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left: BTP Traffic Corridors */}
+            <div className="bg-[#171b26] rounded-xl p-4 shadow-md border border-[#262a35] flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-[20px]">traffic</span>
+                  <h3 className="font-headline-sm text-sm text-white font-bold">
+                    BTP Arterial Traffic Congestion (OSRM Live)
+                  </h3>
+                </div>
+                <span className="font-mono text-[10px] text-error font-bold">SILK BOARD APEX</span>
+              </div>
+
+              <div className="flex flex-col gap-2 max-h-[460px] overflow-y-auto pr-1">
+                {corridors.map((c) => (
+                  <div
+                    key={c.id}
+                    className="bg-[#1c1f2a] p-3 rounded-lg border border-[#262a35] hover:border-[#3d494c] transition-all flex flex-col gap-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-white font-bold truncate max-w-[240px]">
+                        {c.name}
+                      </span>
+                      <span
+                        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                          c.congestionLevel === 'CRITICAL'
+                            ? 'bg-error-container text-on-error-container'
+                            : c.congestionLevel === 'HIGH'
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-primary/20 text-primary'
+                        }`}
+                      >
+                        {c.congestionLevel}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 bg-[#0a0e18] p-2 rounded text-[10px] font-mono">
+                      <div>
+                        <span className="text-outline uppercase block">CURRENT:</span>
+                        <span className="text-error font-bold">{c.currentMinutes} MIN</span>
+                      </div>
+                      <div>
+                        <span className="text-outline uppercase block">DELAY:</span>
+                        <span className="text-amber-400 font-bold">+{c.delayMinutes} MIN</span>
+                      </div>
+                      <div>
+                        <span className="text-outline uppercase block">SPEED:</span>
+                        <span className="text-primary font-bold">{c.speedKmph} KM/H</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] font-mono text-on-surface-variant">
+                      <span className="truncate">Hotspot: {c.hotspot}</span>
+                      <span className="text-outline">{c.distanceKm} km</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: BESCOM Power Substations */}
+            <div className="bg-[#171b26] rounded-xl p-4 shadow-md border border-[#262a35] flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-secondary text-[20px]">bolt</span>
+                  <h3 className="font-headline-sm text-sm text-white font-bold">
+                    BESCOM Receiving Substations SCADA
+                  </h3>
+                </div>
+                <span className="font-mono text-[10px] text-tertiary font-bold">3,420 MW GRID</span>
+              </div>
+
+              <div className="flex flex-col gap-2 max-h-[460px] overflow-y-auto pr-1">
+                {substations.map((s) => (
+                  <div
+                    key={s.id}
+                    className="bg-[#1c1f2a] p-3 rounded-lg border border-[#262a35] hover:border-[#3d494c] transition-all flex flex-col gap-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-mono text-xs text-white font-bold">{s.name}</span>
+                        <span className="text-outline text-[10px] font-mono ml-2">({s.voltageClass})</span>
+                      </div>
+                      <span
+                        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                          s.loadPercentage >= 90
+                            ? 'bg-error-container text-on-error-container'
+                            : s.loadPercentage >= 80
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-tertiary/20 text-tertiary'
+                        }`}
+                      >
+                        {s.loadPercentage}% LOAD
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-[#0a0e18] h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          s.loadPercentage >= 90 ? 'bg-error' : s.loadPercentage >= 80 ? 'bg-amber-400' : 'bg-tertiary'
+                        }`}
+                        style={{ width: `${s.loadPercentage}%` }}
+                      ></div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 bg-[#0a0e18] p-2 rounded text-[10px] font-mono">
+                      <div>
+                        <span className="text-outline uppercase block">LOAD:</span>
+                        <span className="text-on-surface font-bold">{s.currentLoadMw} / {s.capacityMw} MW</span>
+                      </div>
+                      <div>
+                        <span className="text-outline uppercase block">TRANSFORMER:</span>
+                        <span className={s.transformerTempC >= 80 ? 'text-error font-bold' : 'text-primary font-bold'}>
+                          {s.transformerTempC}°C
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-outline uppercase block">COOLING:</span>
+                        <span className="text-secondary font-bold truncate">{s.coolingStatus}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Broadcast Intercom Modal */}
       {intercomNoticeOpen && (
@@ -710,7 +890,9 @@ export const CityOverviewDashboard: React.FC<CityOverviewDashboardProps> = ({
       )}
 
       {/* Active Incidents & Rapid AI Warnings Table */}
-      <div className="bg-[#171b26] rounded-xl p-3 shadow-md border border-[#262a35] flex flex-col gap-3">
+      {(dashboardView === 'incidents' || dashboardView === 'all') && (
+        <div className="flex flex-col gap-4 animate-fade-in">
+          <div className="bg-[#171b26] rounded-xl p-3 shadow-md border border-[#262a35] flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-error text-[22px]">warning</span>
@@ -950,6 +1132,8 @@ export const CityOverviewDashboard: React.FC<CityOverviewDashboardProps> = ({
           </button>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 };
