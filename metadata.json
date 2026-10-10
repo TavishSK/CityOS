@@ -1,0 +1,6 @@
+{
+  "name": "City OS // Central Intelligence - Bengaluru Command",
+  "description": "Unified municipal telemetry, real-time traffic, weather, Namma Metro transit, BESCOM grid monitoring, and AI response orchestration for Bengaluru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
